@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบันทึกรายรับ-รายจ่าย (Expense & Income Tracker)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            700: '#075985',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Kanit', 'Prompt', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Kanit', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+        }
+        .dark ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-200">
+
+    <!-- Header / Navbar -->
+    <header class="sticky top-0 z-30 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
+                    <i class="fa-solid fa-wallet text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight sm:text-xl text-slate-800 dark:text-white">สมุดบันทึกเงิน</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Expense & Income Tracker</p>
+                </div>
+            </div>
+
+            <!-- Header Controls -->
+            <div class="flex items-center gap-2">
+                <!-- Theme Toggle Button -->
+                <button id="themeToggleBtn" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors" title="สลับโหมดมืด/สว่าง">
+                    <i class="fa-solid fa-moon dark:hidden"></i>
+                    <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
+                </button>
+
+                <!-- Data Backup / Export Menu Dropdown -->
+                <div class="relative">
+                    <button id="dataMenuBtn" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors" title="จัดการข้อมูล">
+                        <i class="fa-solid fa-database"></i>
+                    </button>
+
+                    <div id="dataMenuDropdown" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 py-2 z-50">
+                        <div class="px-4 py-2 border-b border-slate-100 dark:border-slate-700">
+                            <p class="text-xs font-semibold text-slate-400 uppercase">สำรอง & จัดการข้อมูล</p>
+                        </div>
+                        <button id="exportCsvBtn" class="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2.5 text-slate-700 dark:text-slate-200">
+                            <i class="fa-solid fa-file-csv text-emerald-500 text-base"></i> ส่งออกเป็น CSV (Excel)
+                        </button>
+                        <button id="exportJsonBtn" class="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2.5 text-slate-700 dark:text-slate-200">
+                            <i class="fa-solid fa-file-code text-blue-500 text-base"></i> ส่งออกเป็น JSON
+                        </button>
+                        <label class="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2.5 text-slate-700 dark:text-slate-200 cursor-pointer">
+                            <i class="fa-solid fa-file-import text-purple-500 text-base"></i> นำเข้าข้อมูล (JSON)
+                            <input type="file" id="importJsonInput" accept=".json" class="hidden">
+                        </label>
+                        <div class="border-t border-slate-100 dark:border-slate-700 my-1"></div>
+                        <button id="clearDataBtn" class="w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 dark:hover:bg-red-950/30 text-rose-600 dark:text-rose-400 flex items-center gap-2.5">
+                            <i class="fa-solid fa-trash-can text-base"></i> ล้างข้อมูลทั้งหมด
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Add Transaction Button (Mobile Primary action trigger) -->
+                <button id="openModalBtn" class="md:hidden bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white p-2.5 rounded-xl shadow-md flex items-center justify-center transition">
+                    <i class="fa-solid fa-plus text-lg"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Financial Overview Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+            <!-- Balance Card -->
+            <div class="bg-gradient-to-br from-indigo-600 to-slate-800 text-white rounded-3xl p-6 shadow-lg shadow-indigo-500/10 relative overflow-hidden flex flex-col justify-between">
+                <div class="absolute -right-6 -bottom-6 opacity-10 text-9xl font-bold">
+                    <i class="fa-solid fa-wallet"></i>
+                </div>
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-indigo-200 text-sm font-medium">ยอดคงเหลือสุทธิ</span>
+                        <span class="bg-indigo-500/30 text-indigo-100 text-xs px-2.5 py-1 rounded-full backdrop-blur-sm border border-indigo-400/20">รวมทั้งหมด</span>
+                    </div>
+                    <div class="text-3xl sm:text-4xl font-bold tracking-tight my-1" id="totalBalance">฿0.00</div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-indigo-500/30 flex items-center justify-between text-xs text-indigo-200">
+                    <span>สถานะการเงิน:</span>
+                    <span id="financialHealth" class="font-medium text-emerald-300">ปกติ</span>
+                </div>
+            </div>
+
+            <!-- Total Income Card -->
+            <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700/60 shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 dark:text-slate-400">รายรับรวม</p>
+                        <h3 class="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-2" id="totalIncome">฿0.00</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-arrow-down-left"></i>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-xs text-slate-500 dark:text-slate-400">
+                    <span id="incomeCount">0 รายการ</span>
+                </div>
+            </div>
+
+            <!-- Total Expense Card -->
+            <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700/60 shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 dark:text-slate-400">รายจ่ายรวม</p>
+                        <h3 class="text-2xl sm:text-3xl font-bold text-rose-600 dark:text-rose-400 mt-2" id="totalExpense">฿0.00</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-arrow-up-right"></i>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-xs text-slate-500 dark:text-slate-400">
+                    <span id="expenseCount">0 รายการ</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Main Trend Chart -->
+            <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700/60 shadow-sm flex flex-col justify-between">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                    <div>
+                        <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-100">แนวโน้มรายรับ - รายจ่าย</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">สรุปเปรียบเทียบการรับและจ่ายในแต่ละช่วงเวลา</p>
+                    </div>
+                    <!-- Chart Filter Options -->
+                    <div class="flex bg-slate-100 dark:bg-slate-700/50 p-1 rounded-xl text-xs font-medium self-start sm:self-auto">
+                        <button id="chartFilterMonthly" class="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-600 shadow-sm text-slate-800 dark:text-white transition">รายเดือน</button>
+                        <button id="chartFilterDaily" class="px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition">7 วันล่าสุด</button>
+                    </div>
+                </div>
+                <div class="relative w-full h-64 sm:h-72">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Category Breakdown Chart -->
+            <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700/60 shadow-sm flex flex-col">
+                <div class="mb-4">
+                    <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-100">สัดส่วนรายจ่ายตามหมวดหมู่</h2>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">หมวดหมู่ที่คุณใช้จ่ายมากที่สุด</p>
+                </div>
+                <div class="relative flex-1 flex items-center justify-center min-h-[220px]">
+                    <canvas id="categoryChart"></canvas>
+                    <div id="noExpenseChartData" class="hidden absolute inset-0 flex flex-col items-center justify-center text-slate-400 text-sm">
+                        <i class="fa-solid fa-chart-pie text-4xl mb-2 text-slate-300 dark:text-slate-600"></i>
+                        <span>ยังไม่มีข้อมูลรายจ่าย</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content Grid: Form (Desktop) & History -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Desktop Add Transaction Form Panel -->
+            <div class="hidden lg:block bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700/60 shadow-sm h-fit sticky top-24">
+                <div class="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100 dark:border-slate-700">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-sm font-bold">
+                        <i class="fa-solid fa-plus"></i>
+                    </div>
+                    <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-100">บันทึกรายการใหม่</h2>
+                </div>
+                <form id="desktopTxForm" class="space-y-4">
+                    <!-- Type Selector (Income / Expense) -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">ประเภทรายการ</label>
+                        <div class="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-700/50 rounded-2xl">
+                            <button type="button" data-type="expense" class="tx-type-btn active flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition bg-rose-500 text-white shadow-sm">
+                                <i class="fa-solid fa-arrow-up-right"></i> รายจ่าย
+                            </button>
+                            <button type="button" data-type="income" class="tx-type-btn flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition text-slate-600 dark:text-slate-300 hover:text-slate-900">
+                                <i class="fa-solid fa-arrow-down-left"></i> รายรับ
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Amount Field -->
+                    <div>
+                        <label for="dtAmount" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">จำนวนเงิน (บาท)</label>
+                        <div class="relative">
+                            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold">฿</span>
+                            <input type="number" id="dtAmount" step="0.01" min="0.01" placeholder="0.00" required
+                                class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition text-lg font-semibold">
+                        </div>
+                    </div>
+
+                    <!-- Category Field -->
+                    <div>
+                        <label for="dtCategory" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">หมวดหมู่</label>
+                        <select id="dtCategory" required
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition text-sm">
+                            <!-- Options rendered dynamically -->
+                        </select>
+                    </div>
+
+                    <!-- Date Field -->
+                    <div>
+                        <label for="dtDate" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">วันที่</label>
+                        <input type="date" id="dtDate" required
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition text-sm">
+                    </div>
+
+                    <!-- Note Field -->
+                    <div>
+                        <label for="dtNote" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">บันทึกช่วยจำ (ถ้ามี)</label>
+                        <input type="text" id="dtNote" placeholder="รายละเอียดเพิ่มเติม..."
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition text-sm">
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-white py-3 rounded-xl font-medium shadow-md shadow-emerald-500/20 transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-check"></i> บันทึกรายการ
+                    </button>
+                </form>
+            </div>
+
+            <!-- Transaction History Section -->
+            <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700/60 shadow-sm flex flex-col min-h-[500px]">
+                
+                <!-- History Header & Search/Filter Controls -->
+                <div class="space-y-4 mb-4 pb-4 border-b border-slate-100 dark:border-slate-700">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-clock-rotate-left text-slate-400"></i> ประวัติรายการ
+                        </h2>
+                        <span id="filteredCount" class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full font-medium">0 รายการ</span>
+                    </div>
+
+                    <!-- Filter Bar -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <!-- Search Box -->
+                        <div class="relative">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            <input type="text" id="searchInput" placeholder="ค้นหาตามโน้ต/จำนวนเงิน..."
+                                class="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        </div>
+
+                        <!-- Type Filter -->
+                        <div>
+                            <select id="typeFilter" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                <option value="all">ทุกประเภท (รับ/จ่าย)</option>
+                                <option value="income">เฉพาะรายรับ</option>
+                                <option value="expense">เฉพาะรายจ่าย</option>
+                            </select>
+                        </div>
+
+                        <!-- Category Filter -->
+                        <div>
+                            <select id="categoryFilter" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                <option value="all">ทุกหมวดหมู่</option>
+                                <!-- Categories populated dynamically -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Transaction List -->
+                <div id="transactionList" class="space-y-2.5 flex-1 overflow-y-auto max-h-[500px] pr-1">
+                    <!-- Empty State Placeholder -->
+                    <div id="emptyState" class="hidden h-full py-16 flex flex-col items-center justify-center text-center text-slate-400">
+                        <div class="w-16 h-16 mb-3 rounded-full bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center text-2xl text-slate-300 dark:text-slate-500">
+                            <i class="fa-solid fa-receipt"></i>
+                        </div>
+                        <p class="font-medium text-slate-600 dark:text-slate-300">ยังไม่มีรายการบันทึก</p>
+                        <p class="text-xs text-slate-400 mt-1">เริ่มบันทึกรายรับหรือรายจ่ายรายการแรกของคุณได้เลย!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal for Adding / Editing Transaction (Mobile & Desktop) -->
+    <div id="txModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl border border-slate-100 dark:border-slate-700 transform scale-95 transition-transform duration-200">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700 mb-4">
+                <h3 id="modalTitle" class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-circle-plus text-emerald-500"></i> บันทึกรายการใหม่
+                </h3>
+                <button id="closeModalBtn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form id="modalTxForm" class="space-y-4">
+                <input type="hidden" id="modalTxId">
+
+                <!-- Type Selector -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">ประเภทรายการ</label>
+                    <div class="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-700/50 rounded-2xl">
+                        <button type="button" data-modal-type="expense" class="modal-tx-type-btn active flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition bg-rose-500 text-white shadow-sm">
+                            <i class="fa-solid fa-arrow-up-right"></i> รายจ่าย
+                        </button>
+                        <button type="button" data-modal-type="income" class="modal-tx-type-btn flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition text-slate-600 dark:text-slate-300">
+                            <i class="fa-solid fa-arrow-down-left"></i> รายรับ
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Amount Field -->
+                <div>
+                    <label for="modalAmount" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">จำนวนเงิน (บาท)</label>
+                    <div class="relative">
+                        <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold">฿</span>
+                        <input type="number" id="modalAmount" step="0.01" min="0.01" placeholder="0.00" required
+                            class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition text-lg font-semibold">
+                    </div>
+                </div>
+
+                <!-- Category Field -->
+                <div>
+                    <label for="modalCategory" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">หมวดหมู่</label>
+                    <select id="modalCategory" required
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition text-sm">
+                    </select>
+                </div>
+
+                <!-- Date Field -->
+                <div>
+                    <label for="modalDate" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">วันที่</label>
+                    <input type="date" id="modalDate" required
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition text-sm">
+                </div>
+
+                <!-- Note Field -->
+                <div>
+                    <label for="modalNote" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">บันทึกช่วยจำ (ถ้ามี)</label>
+                    <input type="text" id="modalNote" placeholder="รายละเอียดเพิ่มเติม..."
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition text-sm">
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-3 pt-2">
+                    <button type="button" id="cancelModalBtn" class="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 py-3 rounded-xl font-medium transition">
+                        ยกเลิก
+                    </button>
+                    <button type="submit" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-xl font-medium shadow-md shadow-emerald-500/20 transition">
+                        บันทึก
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Confirmation / Notification Custom Modal -->
+    <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-100 dark:border-slate-700 text-center transform scale-95 transition-transform duration-200">
+            <div id="confirmIconContainer" class="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center text-2xl bg-rose-100 dark:bg-rose-500/20 text-rose-500">
+                <i id="confirmIcon" class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 id="confirmTitle" class="text-lg font-bold text-slate-800 dark:text-white mb-1">ยืนยันการทำรายการ</h3>
+            <p id="confirmMessage" class="text-sm text-slate-500 dark:text-slate-400 mb-6">คุณแน่ใจหรือไม่ว่าต้องการดำเนินการนี้?</p>
+            <div class="flex gap-3">
+                <button id="cancelConfirmBtn" class="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 py-2.5 rounded-xl font-medium text-sm transition">
+                    ยกเลิก
+                </button>
+                <button id="acceptConfirmBtn" class="flex-1 bg-rose-500 hover:bg-rose-600 text-white py-2.5 rounded-xl font-medium text-sm shadow-md transition">
+                    ตกลง
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        /* Categorized Master Data Configuration */
+        const CATEGORIES = {
+            expense: [
+                { id: 'food', name: 'อาหาร / เครื่องดื่ม', icon: 'fa-utensils', color: '#f97316' },
+                { id: 'transport', name: 'เดินทาง / น้ำมัน', icon: 'fa-car', color: '#3b82f6' },
+                { id: 'shopping', name: 'ช้อปปิ้ง / ของใช้', icon: 'fa-bag-shopping', color: '#ec4899' },
+                { id: 'bills', name: 'บิล / น้ำ-ไฟ-เน็ต', icon: 'fa-file-invoice-dollar', color: '#eab308' },
+                { id: 'entertainment', name: 'ความบันเทิง / เที่ยว', icon: 'fa-gamepad', color: '#a855f7' },
+                { id: 'health', name: 'สุขภาพ / ยา', icon: 'fa-notes-medical', color: '#10b981' },
+                { id: 'education', name: 'การศึกษา / หนังสือ', icon: 'fa-graduation-cap', color: '#06b6d4' },
+                { id: 'home', name: 'บ้าน / คอนโด', icon: 'fa-house', color: '#8b5cf6' },
+                { id: 'other_expense', name: 'รายจ่ายอื่นๆ', icon: 'fa-circle-ellipsis', color: '#64748b' }
+            ],
+            income: [
+                { id: 'salary', name: 'เงินเดือน / ค่าจ้าง', icon: 'fa-money-bill-wave', color: '#10b981' },
+                { id: 'business', name: 'ธุรกิจ / ค้าขาย', icon: 'fa-store', color: '#06b6d4' },
+                { id: 'investment', name: 'การลงทุน / ปันผล', icon: 'fa-chart-line', color: '#3b82f6' },
+                { id: 'freelance', name: 'ฟรีแลนซ์ / งานเสริม', icon: 'fa-laptop-code', color: '#8b5cf6' },
+                { id: 'gift', name: 'ของขวัญ / โบนัส', icon: 'fa-gift', color: '#f43f5e' },
+                { id: 'other_income', name: 'รายรับอื่นๆ', icon: 'fa-wallet', color: '#64748b' }
+            ]
+        };
+
+        // Default Sample Data (used when app is first loaded)
+        const DEFAULT_TRANSACTIONS = [
+            { id: '1', type: 'income', amount: 35000, category: 'salary', date: getFormattedDate(0), note: 'เงินเดือนประจำเดือน' },
+            { id: '2', type: 'expense', amount: 150, category: 'food', date: getFormattedDate(0), note: 'ข้าวเที่ยง + กาแฟ' },
+            { id: '3', type: 'expense', amount: 1200, category: 'bills', date: getFormattedDate(-1), note: 'ค่าอินเทอร์เน็ตรายเดือน' },
+            { id: '4', type: 'expense', amount: 450, category: 'transport', date: getFormattedDate(-2), note: 'เติมน้ำมันรถยนต์' },
+            { id: '5', type: 'income', amount: 3500, category: 'freelance', date: getFormattedDate(-3), note: 'รับทำเว็บไซต์เสริม' }
+        ];
+
+        // Helper function for date offsets
+        function getFormattedDate(offsetDays = 0) {
+            const d = new Date();
+            d.setDate(d.getDate() + offsetDays);
+            return d.toISOString().split('T')[0];
+        }
+
+        /* Application State */
+        let transactions = [];
+        let currentType = 'expense';
+        let currentModalType = 'expense';
+        let trendChart = null;
+        let categoryChart = null;
+        let trendChartPeriod = 'monthly'; // 'monthly' or 'daily'
+        let pendingConfirmAction = null;
+
+        /* Initialize Application */
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            loadData();
+            setupEventListeners();
+            initCharts();
+            updateUI();
+
+            // Set default date inputs to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('dtDate').value = today;
+            document.getElementById('modalDate').value = today;
+        });
+
+        // LocalStorage Management
+        function loadData() {
+            const saved = localStorage.getItem('thai_expense_tracker_data');
+            if (saved) {
+                try {
+                    transactions = JSON.parse(saved);
+                } catch(e) {
+                    transactions = [...DEFAULT_TRANSACTIONS];
+                }
+            } else {
+                transactions = [...DEFAULT_TRANSACTIONS];
+                saveData();
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('thai_expense_tracker_data', JSON.stringify(transactions));
+        }
+
+        /* Theme Management */
+        function initTheme() {
+            const savedTheme = localStorage.getItem('thai_expense_tracker_theme');
+            if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('thai_expense_tracker_theme', isDark ? 'dark' : 'light');
+            updateChartsTheme();
+        }
+
+        /* Event Listeners Setup */
+        function setupEventListeners() {
+            // Theme toggle
+            document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
+
+            // Data Menu Dropdown toggle
+            const dataMenuBtn = document.getElementById('dataMenuBtn');
+            const dataMenuDropdown = document.getElementById('dataMenuDropdown');
+            dataMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dataMenuDropdown.classList.toggle('hidden');
+            });
+            document.addEventListener('click', () => dataMenuDropdown.classList.add('hidden'));
+
+            // Desktop Type Selector buttons
+            document.querySelectorAll('.tx-type-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const type = e.currentTarget.dataset.type;
+                    setFormType(type, 'desktop');
+                });
+            });
+
+            // Modal Type Selector buttons
+            document.querySelectorAll('.modal-tx-type-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const type = e.currentTarget.dataset.modalType;
+                    setFormType(type, 'modal');
+                });
+            });
+
+            // Desktop Form Submission
+            document.getElementById('desktopTxForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                addTransaction({
+                    amount: parseFloat(document.getElementById('dtAmount').value),
+                    type: currentType,
+                    category: document.getElementById('dtCategory').value,
+                    date: document.getElementById('dtDate').value,
+                    note: document.getElementById('dtNote').value.trim()
+                });
+                document.getElementById('dtAmount').value = '';
+                document.getElementById('dtNote').value = '';
+                showToast('บันทึกรายการเรียบร้อยแล้ว', 'success');
+            });
+
+            // Modal Form Submission
+            document.getElementById('modalTxForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const id = document.getElementById('modalTxId').value;
+                const txData = {
+                    amount: parseFloat(document.getElementById('modalAmount').value),
+                    type: currentModalType,
+                    category: document.getElementById('modalCategory').value,
+                    date: document.getElementById('modalDate').value,
+                    note: document.getElementById('modalNote').value.trim()
+                };
+
+                if (id) {
+                    // Editing existing
+                    updateTransaction(id, txData);
+                    showToast('แก้ไขรายการเรียบร้อยแล้ว', 'success');
+                } else {
+                    // New from modal
+                    addTransaction(txData);
+                    showToast('บันทึกรายการเรียบร้อยแล้ว', 'success');
+                }
+                closeModal();
+            });
+
+            // Modal Open & Close controls
+            document.getElementById('openModalBtn').addEventListener('click', () => openModal());
+            document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+            document.getElementById('cancelModalBtn').addEventListener('click', closeModal);
+
+            // Filter Controls
+            document.getElementById('searchInput').addEventListener('input', renderTransactions);
+            document.getElementById('typeFilter').addEventListener('change', renderTransactions);
+            document.getElementById('categoryFilter').addEventListener('change', renderTransactions);
+
+            // Chart Period Filters
+            document.getElementById('chartFilterMonthly').addEventListener('click', (e) => {
+                trendChartPeriod = 'monthly';
+                e.target.className = "px-3 py-1.5 rounded-lg bg-white dark:bg-slate-600 shadow-sm text-slate-800 dark:text-white transition";
+                document.getElementById('chartFilterDaily').className = "px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition";
+                updateCharts();
+            });
+
+            document.getElementById('chartFilterDaily').addEventListener('click', (e) => {
+                trendChartPeriod = 'daily';
+                e.target.className = "px-3 py-1.5 rounded-lg bg-white dark:bg-slate-600 shadow-sm text-slate-800 dark:text-white transition";
+                document.getElementById('chartFilterMonthly').className = "px-3 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition";
+                updateCharts();
+            });
+
+            // Data Export & Import Handlers
+            document.getElementById('exportCsvBtn').addEventListener('click', exportToCSV);
+            document.getElementById('exportJsonBtn').addEventListener('click', exportToJSON);
+            document.getElementById('importJsonInput').addEventListener('change', importFromJSON);
+            document.getElementById('clearDataBtn').addEventListener('click', () => {
+                showConfirmModal(
+                    'ล้างข้อมูลทั้งหมด',
+                    'คุณแน่ใจหรือไม่ว่าต้องการลบรายการทั้งหมด? ข้อมูลเดิมจะไม่สามารถกู้คืนได้',
+                    () => {
+                        transactions = [];
+                        saveData();
+                        updateUI();
+                        showToast('ล้างข้อมูลเรียบร้อยแล้ว', 'info');
+                    }
+                );
+            });
+
+            // Confirmation Modal Actions
+            document.getElementById('cancelConfirmBtn').addEventListener('click', closeConfirmModal);
+            document.getElementById('acceptConfirmBtn').addEventListener('click', () => {
+                if (pendingConfirmAction) pendingConfirmAction();
+                closeConfirmModal();
+            });
+
+            // Initialize Form Category Options
+            populateCategoriesSelects();
+        }
+
+        /* Set Form Type (Income/Expense Switcher) */
+        function setFormType(type, targetForm = 'desktop') {
+            if (targetForm === 'desktop') {
+                currentType = type;
+                document.querySelectorAll('.tx-type-btn').forEach(btn => {
+                    if (btn.dataset.type === type) {
+                        btn.className = `tx-type-btn active flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition ${type === 'expense' ? 'bg-rose-500' : 'bg-emerald-500'} text-white shadow-sm`;
+                    } else {
+                        btn.className = 'tx-type-btn flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition text-slate-600 dark:text-slate-300 hover:text-slate-900';
+                    }
+                });
+                populateCategoryDropdown('dtCategory', type);
+            } else {
+                currentModalType = type;
+                document.querySelectorAll('.modal-tx-type-btn').forEach(btn => {
+                    if (btn.dataset.modalType === type) {
+                        btn.className = `modal-tx-type-btn active flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition ${type === 'expense' ? 'bg-rose-500' : 'bg-emerald-500'} text-white shadow-sm`;
+                    } else {
+                        btn.className = 'modal-tx-type-btn flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition text-slate-600 dark:text-slate-300';
+                    }
+                });
+                populateCategoryDropdown('modalCategory', type);
+            }
+        }
+
+        /* Populate Category Dropdown Options */
+        function populateCategoriesSelects() {
+            populateCategoryDropdown('dtCategory', currentType);
+            populateCategoryDropdown('modalCategory', currentModalType);
+
+            // Populate Filter Select with ALL categories
+            const filterSelect = document.getElementById('categoryFilter');
+            filterSelect.innerHTML = '<option value="all">ทุกหมวดหมู่</option>';
+            
+            const allCats = [...CATEGORIES.expense, ...CATEGORIES.income];
+            allCats.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat.id;
+                opt.textContent = cat.name;
+                filterSelect.appendChild(opt);
+            });
+        }
+
+        function populateCategoryDropdown(selectId, type) {
+            const select = document.getElementById(selectId);
+            select.innerHTML = '';
+            CATEGORIES[type].forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat.id;
+                opt.textContent = cat.name;
+                select.appendChild(opt);
+            });
+        }
+
+        /* CRUD Operations */
+        function addTransaction(tx) {
+            const newTx = {
+                id: Date.now().toString(),
+                ...tx
+            };
+            transactions.unshift(newTx);
+            saveData();
+            updateUI();
+        }
+
+        function updateTransaction(id, updatedData) {
+            const index = transactions.findIndex(t => t.id === id);
+            if (index !== -1) {
+                transactions[index] = { id, ...updatedData };
+                saveData();
+                updateUI();
+            }
+        }
+
+        function deleteTransaction(id) {
+            showConfirmModal(
+                'ลบรายการนี้?',
+                'รายการที่ถูกลบไปจะไม่สามารถเรียกคืนกลับมาได้อีก',
+                () => {
+                    transactions = transactions.filter(t => t.id !== id);
+                    saveData();
+                    updateUI();
+                    showToast('ลบรายการเรียบร้อยแล้ว', 'info');
+                }
+            );
+        }
+
+        /* Modal Dialog Management */
+        function openModal(editId = null) {
+            const modal = document.getElementById('txModal');
+            const title = document.getElementById('modalTitle');
+            const form = document.getElementById('modalTxForm');
+
+            if (editId) {
+                const tx = transactions.find(t => t.id === editId);
+                if (!tx) return;
+
+                title.innerHTML = '<i class="fa-solid fa-pen-to-square text-amber-500"></i> แก้ไขรายการ';
+                document.getElementById('modalTxId').value = tx.id;
+                document.getElementById('modalAmount').value = tx.amount;
+                document.getElementById('modalDate').value = tx.date;
+                document.getElementById('modalNote').value = tx.note || '';
+                setFormType(tx.type, 'modal');
+                document.getElementById('modalCategory').value = tx.category;
+            } else {
+                title.innerHTML = '<i class="fa-solid fa-circle-plus text-emerald-500"></i> บันทึกรายการใหม่';
+                form.reset();
+                document.getElementById('modalTxId').value = '';
+                document.getElementById('modalDate').value = new Date().toISOString().split('T')[0];
+                setFormType('expense', 'modal');
+            }
+
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.remove('scale-95');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('txModal');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.add('scale-95');
+        }
+
+        function showConfirmModal(title, message, onConfirm) {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            pendingConfirmAction = onConfirm;
+
+            const modal = document.getElementById('confirmModal');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.remove('scale-95');
+        }
+
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirmModal');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.add('scale-95');
+            pendingConfirmAction = null;
+        }
+
+        /* Custom Toast Notification */
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            const bgClass = type === 'success' 
+                ? 'bg-slate-800 text-emerald-400 dark:bg-slate-100 dark:text-emerald-600' 
+                : 'bg-slate-800 text-slate-200 dark:bg-slate-100 dark:text-slate-800';
+            
+            const icon = type === 'success' ? 'fa-check-circle' : 'fa-info-circle';
+
+            toast.className = `flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl text-sm font-medium border border-slate-700/20 dark:border-slate-200/20 transition-all duration-300 transform translate-y-4 opacity-0 ${bgClass}`;
+            toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
+
+            container.appendChild(toast);
+
+            // Animate In
+            setTimeout(() => {
+                toast.classList.remove('translate-y-4', 'opacity-0');
+            }, 10);
+
+            // Auto Remove
+            setTimeout(() => {
+                toast.classList.add('translate-y-4', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        /* Update Main UI Display */
+        function updateUI() {
+            calculateTotals();
+            renderTransactions();
+            updateCharts();
+        }
+
+        function calculateTotals() {
+            let totalInc = 0;
+            let totalExp = 0;
+            let incCount = 0;
+            let expCount = 0;
+
+            transactions.forEach(t => {
+                if (t.type === 'income') {
+                    totalInc += t.amount;
+                    incCount++;
+                } else {
+                    totalExp += t.amount;
+                    expCount++;
+                }
+            });
+
+            const balance = totalInc - totalExp;
+
+            document.getElementById('totalBalance').textContent = `฿${balance.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
+            document.getElementById('totalIncome').textContent = `฿${totalInc.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
+            document.getElementById('totalExpense').textContent = `฿${totalExp.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
+            
+            document.getElementById('incomeCount').textContent = `${incCount} รายการ`;
+            document.getElementById('expenseCount').textContent = `${expCount} รายการ`;
+
+            // Financial Health Indicator
+            const healthElem = document.getElementById('financialHealth');
+            if (balance < 0) {
+                healthElem.textContent = 'รายจ่ายเกินรายรับ!';
+                healthElem.className = 'font-medium text-rose-300';
+            } else if (totalInc > 0 && (totalExp / totalInc) > 0.8) {
+                healthElem.textContent = 'ใช้จ่ายค่อนข้างสูง';
+                healthElem.className = 'font-medium text-amber-300';
+            } else {
+                healthElem.textContent = 'สภาพคล่องดี';
+                healthElem.className = 'font-medium text-emerald-300';
+            }
+        }
+
+        function renderTransactions() {
+            const list = document.getElementById('transactionList');
+            const emptyState = document.getElementById('emptyState');
+            
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const typeVal = document.getElementById('typeFilter').value;
+            const catVal = document.getElementById('categoryFilter').value;
+
+            // Filter logic
+            const filtered = transactions.filter(t => {
+                const matchSearch = (t.note || '').toLowerCase().includes(search) || t.amount.toString().includes(search);
+                const matchType = typeVal === 'all' || t.type === typeVal;
+                const matchCat = catVal === 'all' || t.category === catVal;
+                return matchSearch && matchType && matchCat;
+            });
+
+            document.getElementById('filteredCount').textContent = `${filtered.length} รายการ`;
+
+            if (filtered.length === 0) {
+                list.innerHTML = '';
+                list.appendChild(emptyState);
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            
+            // Build Transactions HTML
+            list.innerHTML = filtered.map(t => {
+                const catObj = getCategoryInfo(t.category, t.type);
+                const isIncome = t.type === 'income';
+                const formattedAmount = `${isIncome ? '+' : '-'}฿${t.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
+                const thaiDate = formatThaiDate(t.date);
+
+                return `
+                    <div class="group bg-slate-50 dark:bg-slate-700/40 hover:bg-slate-100 dark:hover:bg-slate-700/70 p-3.5 rounded-2xl transition border border-transparent hover:border-slate-200 dark:hover:border-slate-600 flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <!-- Category Icon Badge -->
+                            <div class="w-11 h-11 rounded-2xl flex-shrink-0 flex items-center justify-center text-lg text-white shadow-sm" style="background-color: ${catObj.color}">
+                                <i class="fa-solid ${catObj.icon}"></i>
+                            </div>
+                            
+                            <!-- Transaction Details -->
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <h4 class="font-medium text-slate-800 dark:text-slate-100 text-sm truncate">${catObj.name}</h4>
+                                    <span class="text-[10px] px-2 py-0.5 rounded-full font-medium ${isIncome ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'}">
+                                        ${isIncome ? 'รายรับ' : 'รายจ่าย'}
+                                    </span>
+                                </div>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">${t.note || thaiDate}</p>
+                            </div>
+                        </div>
+
+                        <!-- Right: Amount and Actions -->
+                        <div class="flex items-center gap-3 flex-shrink-0">
+                            <div class="text-right">
+                                <div class="font-bold text-sm sm:text-base ${isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">
+                                    ${formattedAmount}
+                                </div>
+                                <div class="text-[10px] text-slate-400 font-normal sm:hidden">${thaiDate}</div>
+                            </div>
+
+                            <!-- Edit/Delete Action Buttons -->
+                            <div class="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onclick="openModal('${t.id}')" class="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition" title="แก้ไข">
+                                    <i class="fa-solid fa-pen text-xs"></i>
+                                </button>
+                                <button onclick="deleteTransaction('${t.id}')" class="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition" title="ลบ">
+                                    <i class="fa-solid fa-trash-can text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        /* Helper: Find Category metadata */
+        function getCategoryInfo(catId, type) {
+            const list = CATEGORIES[type] || [...CATEGORIES.expense, ...CATEGORIES.income];
+            const found = list.find(c => c.id === catId);
+            return found || { name: 'อื่นๆ', icon: 'fa-circle-question', color: '#64748b' };
+        }
+
+        /* Helper: Thai Date Formatter */
+        function formatThaiDate(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            const thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+            return `${d.getDate()} ${thaiMonths[d.getMonth()]} ${d.getFullYear() + 543}`;
+        }
+
+        /* Chart.js Initialization & Updates */
+        function initCharts() {
+            const isDark = document.documentElement.classList.contains('dark');
+            const textColor = isDark ? '#94a3b8' : '#64748b';
+            const gridColor = isDark ? '#334155' : '#f1f5f9';
+
+            // Trend Chart Config (Bar / Line hybrid)
+            const ctxTrend = document.getElementById('trendChart').getContext('2d');
+            trendChart = new Chart(ctxTrend, {
+                type: 'bar',
+                data: { labels: [], datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: textColor, font: { family: 'Kanit' } } },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => ` ${ctx.dataset.label}: ฿${ctx.raw.toLocaleString('th-TH')}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { ticks: { color: textColor, font: { family: 'Kanit' } }, grid: { display: false } },
+                        y: { ticks: { color: textColor, font: { family: 'Kanit' } }, grid: { color: gridColor } }
+                    }
+                }
+            });
+
+            // Doughnut Category Chart Config
+            const ctxCat = document.getElementById('categoryChart').getContext('2d');
+            categoryChart = new Chart(ctxCat, {
+                type: 'doughnut',
+                data: { labels: [], datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: textColor, font: { family: 'Kanit' }, boxWidth: 12 } },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => ` ${ctx.label}: ฿${ctx.raw.toLocaleString('th-TH')}`
+                            }
+                        }
+                    },
+                    cutout: '65%'
+                }
+            });
+        }
+
+        function updateChartsTheme() {
+            if (trendChart && categoryChart) {
+                trendChart.destroy();
+                categoryChart.destroy();
+                initCharts();
+                updateCharts();
+            }
+        }
+
+        function updateCharts() {
+            updateTrendChart();
+            updateCategoryChart();
+        }
+
+        function updateTrendChart() {
+            let labels = [];
+            let incomeData = [];
+            let expenseData = [];
+
+            if (trendChartPeriod === 'daily') {
+                // Last 7 Days
+                for (let i = 6; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i);
+                    const dateStr = d.toISOString().split('T')[0];
+                    labels.push(`${d.getDate()}/${d.getMonth() + 1}`);
+
+                    const inc = transactions.filter(t => t.type === 'income' && t.date === dateStr).reduce((sum, t) => sum + t.amount, 0);
+                    const exp = transactions.filter(t => t.type === 'expense' && t.date === dateStr).reduce((sum, t) => sum + t.amount, 0);
+                    incomeData.push(inc);
+                    expenseData.push(exp);
+                }
+            } else {
+                // Last 6 Months
+                const thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+                const now = new Date();
+                for (let i = 5; i >= 0; i--) {
+                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                    const year = d.getFullYear();
+                    const month = d.getMonth();
+                    labels.push(`${thaiMonths[month]} ${year + 543}`);
+
+                    const inc = transactions.filter(t => {
+                        const td = new Date(t.date);
+                        return t.type === 'income' && td.getFullYear() === year && td.getMonth() === month;
+                    }).reduce((sum, t) => sum + t.amount, 0);
+
+                    const exp = transactions.filter(t => {
+                        const td = new Date(t.date);
+                        return t.type === 'expense' && td.getFullYear() === year && td.getMonth() === month;
+                    }).reduce((sum, t) => sum + t.amount, 0);
+
+                    incomeData.push(inc);
+                    expenseData.push(exp);
+                }
+            }
+
+            trendChart.data = {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'รายรับ',
+                        data: incomeData,
+                        backgroundColor: '#10b981',
+                        borderRadius: 8
+                    },
+                    {
+                        label: 'รายจ่าย',
+                        data: expenseData,
+                        backgroundColor: '#f43f5e',
+                        borderRadius: 8
+                    }
+                ]
+            };
+            trendChart.update();
+        }
+
+        function updateCategoryChart() {
+            const expenses = transactions.filter(t => t.type === 'expense');
+            const placeholder = document.getElementById('noExpenseChartData');
+
+            if (expenses.length === 0) {
+                placeholder.classList.remove('hidden');
+                categoryChart.data = { labels: [], datasets: [] };
+                categoryChart.update();
+                return;
+            }
+
+            placeholder.classList.add('hidden');
+
+            const catMap = {};
+            expenses.forEach(t => {
+                catMap[t.category] = (catMap[t.category] || 0) + t.amount;
+            });
+
+            const labels = [];
+            const data = [];
+            const colors = [];
+
+            Object.keys(catMap).forEach(catId => {
+                const info = getCategoryInfo(catId, 'expense');
+                labels.push(info.name);
+                data.push(catMap[catId]);
+                colors.push(info.color);
+            });
+
+            categoryChart.data = {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: colors,
+                    borderWidth: 0
+                }]
+            };
+            categoryChart.update();
+        }
+
+        /* Data Export & Import Handlers */
+        function exportToCSV() {
+            if (transactions.length === 0) {
+                showToast('ไม่มีข้อมูลสำหรับส่งออก', 'info');
+                return;
+            }
+
+            const headers = ['ID', 'Type', 'Amount', 'Category', 'Date', 'Note'];
+            const rows = transactions.map(t => [
+                t.id,
+                t.type === 'income' ? 'รายรับ' : 'รายจ่าย',
+                t.amount,
+                getCategoryInfo(t.category, t.type).name,
+                t.date,
+                `"${(t.note || '').replace(/"/g, '""')}"`
+            ]);
+
+            const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `expense_tracker_export_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('ส่งออก CSV เรียบร้อยแล้ว', 'success');
+        }
+
+        function exportToJSON() {
+            if (transactions.length === 0) {
+                showToast('ไม่มีข้อมูลสำหรับส่งออก', 'info');
+                return;
+            }
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(transactions, null, 2));
+            const a = document.createElement('a');
+            a.href = dataStr;
+            a.download = `expense_tracker_backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            showToast('ส่งออก JSON เรียบร้อยแล้ว', 'success');
+        }
+
+        function importFromJSON(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const imported = JSON.parse(event.target.result);
+                    if (Array.isArray(imported)) {
+                        transactions = imported;
+                        saveData();
+                        updateUI();
+                        showToast('นำเข้าข้อมูลสำเร็จแล้ว', 'success');
+                    } else {
+                        showToast('รูปแบบไฟล์ JSON ไม่ถูกต้อง', 'info');
+                    }
+                } catch (err) {
+                    showToast('เกิดข้อผิดพลาดในการอ่านไฟล์', 'info');
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = ''; // Reset input
+        }
+    </script>
+</body>
+</html>

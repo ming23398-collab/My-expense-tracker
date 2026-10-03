@@ -2,8 +2,15 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ระบบบันทึกรายรับ-รายจ่าย (Expense & Income Tracker)</title>
+    <meta name="theme-color" content="#1e293b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="สมุดบันทึกเงิน">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+    <link rel="manifest" href="./manifest.webmanifest">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -32,13 +39,31 @@
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
+        html {
+            background-color: #ffffff;
+        }
+        html.dark {
+            background-color: #1e293b;
+        }
         body {
             font-family: 'Kanit', sans-serif;
             transition: background-color 0.3s, color 0.3s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .app-header-inner {
+            box-sizing: border-box;
+            height: calc(4rem + env(safe-area-inset-top, 0px));
+            padding-top: env(safe-area-inset-top, 0px);
+        }
+        button, input, select {
+            min-height: 44px;
         }
         /* Custom scrollbar */
         ::-webkit-scrollbar {
@@ -58,13 +83,61 @@
         .dark ::-webkit-scrollbar-thumb {
             background: rgba(255, 255, 255, 0.2);
         }
+
+        @media (max-width: 767px) {
+            main {
+                padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+            }
+            #mobileActionDock {
+                left: calc(1rem + env(safe-area-inset-left, 0px));
+                right: calc(1rem + env(safe-area-inset-right, 0px));
+                bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+            }
+            #toastContainer {
+                right: 1rem;
+                bottom: 5.5rem;
+            }
+            #transactionList {
+                padding-bottom: 7rem;
+            }
+            .tx-item {
+                padding: 0.875rem;
+                align-items: stretch;
+                flex-wrap: wrap;
+            }
+            .tx-item > .tx-primary,
+            .tx-item > .tx-secondary {
+                flex: 1 1 100%;
+            }
+            .tx-item > .tx-secondary {
+                justify-content: space-between;
+            }
+            .tx-item .tx-heading {
+                flex-wrap: wrap;
+            }
+            .tx-item .tx-title,
+            .tx-item .tx-note {
+                white-space: normal;
+                overflow: visible;
+                text-overflow: clip;
+                overflow-wrap: anywhere;
+            }
+            .tx-item .tx-actions {
+                gap: 0.5rem;
+            }
+            .tx-item .tx-actions button {
+                width: 2.4rem;
+                height: 2.4rem;
+                border-radius: 0.75rem;
+            }
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-200">
 
     <!-- Header / Navbar -->
-    <header class="sticky top-0 z-30 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 shadow-sm">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <header class="sticky top-0 z-30 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm">
+        <div class="app-header-inner max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
                     <i class="fa-solid fa-wallet text-xl"></i>
@@ -77,10 +150,12 @@
 
             <!-- Header Controls -->
             <div class="flex items-center gap-2">
-                <!-- Theme Toggle Button -->
-                <button id="themeToggleBtn" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors" title="สลับโหมดมืด/สว่าง">
-                    <i class="fa-solid fa-moon dark:hidden"></i>
-                    <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
+                <!-- Category Management Button -->
+                <button id="headerCategoryManagerBtn" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors" title="จัดการหมวดหมู่" aria-label="จัดการหมวดหมู่">
+                    <i class="fa-solid fa-tags text-amber-500"></i>
+                </button>
+                <button id="refreshAppBtn" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors" title="รีเฟรชแอป" aria-label="รีเฟรชแอป">
+                    <i class="fa-solid fa-rotate-right"></i>
                 </button>
 
                 <!-- Data Backup / Export Menu Dropdown -->
@@ -103,6 +178,9 @@
                             <i class="fa-solid fa-file-import text-purple-500 text-base"></i> นำเข้าข้อมูล (JSON)
                             <input type="file" id="importJsonInput" accept=".json" class="hidden">
                         </label>
+                        <button id="themeToggleMenuBtn" class="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2.5 text-slate-700 dark:text-slate-200">
+                            <i class="fa-solid fa-circle-half-stroke text-indigo-500 text-base"></i> สลับโหมดมืด/สว่าง
+                        </button>
                         <div class="border-t border-slate-100 dark:border-slate-700 my-1"></div>
                         <button id="clearDataBtn" class="w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 dark:hover:bg-red-950/30 text-rose-600 dark:text-rose-400 flex items-center gap-2.5">
                             <i class="fa-solid fa-trash-can text-base"></i> ล้างข้อมูลทั้งหมด
@@ -110,10 +188,6 @@
                     </div>
                 </div>
 
-                <!-- Add Transaction Button (Mobile Primary action trigger) -->
-                <button id="openModalBtn" class="md:hidden bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white p-2.5 rounded-xl shadow-md flex items-center justify-center transition">
-                    <i class="fa-solid fa-plus text-lg"></i>
-                </button>
             </div>
         </div>
     </header>
@@ -317,18 +391,48 @@
 
                 <!-- Transaction List -->
                 <div id="transactionList" class="space-y-2.5 flex-1 overflow-y-auto max-h-[500px] pr-1">
-                    <!-- Empty State Placeholder -->
-                    <div id="emptyState" class="hidden h-full py-16 flex flex-col items-center justify-center text-center text-slate-400">
-                        <div class="w-16 h-16 mb-3 rounded-full bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center text-2xl text-slate-300 dark:text-slate-500">
-                            <i class="fa-solid fa-receipt"></i>
-                        </div>
-                        <p class="font-medium text-slate-600 dark:text-slate-300">ยังไม่มีรายการบันทึก</p>
-                        <p class="text-xs text-slate-400 mt-1">เริ่มบันทึกรายรับหรือรายจ่ายรายการแรกของคุณได้เลย!</p>
+                </div>
+                <div id="emptyState" class="hidden h-full py-16 flex flex-col items-center justify-center text-center text-slate-400">
+                    <div class="w-16 h-16 mb-3 rounded-full bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center text-2xl text-slate-300 dark:text-slate-500">
+                        <i class="fa-solid fa-receipt"></i>
                     </div>
+                    <p class="font-medium text-slate-600 dark:text-slate-300">ยังไม่มีรายการบันทึก</p>
+                    <p class="text-xs text-slate-400 mt-1">เริ่มบันทึกรายรับหรือรายจ่ายรายการแรกของคุณได้เลย!</p>
                 </div>
             </div>
         </div>
     </main>
+
+    <!-- Category Management Modal -->
+    <div id="categoryManagerModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-100 dark:border-slate-700 transform scale-95 transition-transform duration-200">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700 mb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800 dark:text-white">จัดการหมวดหมู่</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">เพิ่ม แก้ไข หรือลบหมวดหมู่ของคุณ</p>
+                </div>
+                <button id="closeCategoryManagerBtn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition" aria-label="ปิด">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-700/50 rounded-2xl mb-4">
+                <button type="button" data-category-manager-type="expense" class="category-manager-type-btn rounded-xl py-2.5 text-sm font-medium bg-rose-500 text-white shadow-sm">รายจ่าย</button>
+                <button type="button" data-category-manager-type="income" class="category-manager-type-btn rounded-xl py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300">รายรับ</button>
+            </div>
+            <form id="categoryForm" class="flex gap-2 mb-4">
+                <input type="hidden" id="editingCategoryId">
+                <input type="text" id="categoryNameInput" maxlength="40" placeholder="ชื่อหมวดหมู่ใหม่" required
+                    class="min-w-0 flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base sm:text-sm">
+                <button id="saveCategoryBtn" type="submit" class="shrink-0 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium">
+                    เพิ่ม
+                </button>
+            </form>
+            <button id="cancelCategoryEditBtn" type="button" class="hidden w-full mb-3 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
+                ยกเลิกการแก้ไข
+            </button>
+            <div id="categoryManagerList" class="space-y-2"></div>
+        </div>
+    </div>
 
     <!-- Modal for Adding / Editing Transaction (Mobile & Desktop) -->
     <div id="txModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-200">
@@ -425,7 +529,37 @@
     <!-- Toast Notification Container -->
     <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
+    <div id="mobileActionDock" class="fixed inset-x-4 bottom-4 z-40 md:hidden">
+        <div class="mx-auto max-w-sm rounded-2xl border border-slate-200/80 bg-white/90 p-2.5 shadow-xl backdrop-blur-md dark:border-slate-700 dark:bg-slate-800/90">
+            <div class="grid grid-cols-2 gap-2">
+                <button id="mobileAddExpenseBtn" class="rounded-xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm active:scale-[0.98]">
+                    <i class="fa-solid fa-arrow-up-right mr-1.5"></i> รายจ่าย
+                </button>
+                <button id="mobileAddIncomeBtn" class="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white shadow-sm active:scale-[0.98]">
+                    <i class="fa-solid fa-arrow-down-left mr-1.5"></i> รายรับ
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        const FIREBASE_CONFIG = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "my-expense-tracker-5ba78.firebaseapp.com",
+            projectId: "my-expense-tracker-5ba78",
+            storageBucket: "my-expense-tracker-5ba78.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const HAS_FIREBASE_CONFIG = Object.values(FIREBASE_CONFIG).every(value => value && !String(value).startsWith('YOUR_'));
+
+        if (HAS_FIREBASE_CONFIG) {
+            firebase.initializeApp(FIREBASE_CONFIG);
+        }
+
+        const db = HAS_FIREBASE_CONFIG ? firebase.firestore() : null;
+
         /* Categorized Master Data Configuration */
         const CATEGORIES = {
             expense: [
@@ -469,15 +603,17 @@
         let transactions = [];
         let currentType = 'expense';
         let currentModalType = 'expense';
+        let categoryManagerType = 'expense';
         let trendChart = null;
         let categoryChart = null;
         let trendChartPeriod = 'monthly'; // 'monthly' or 'daily'
         let pendingConfirmAction = null;
 
         /* Initialize Application */
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             initTheme();
             loadData();
+            await syncFromFirebase();
             setupEventListeners();
             initCharts();
             updateUI();
@@ -491,6 +627,7 @@
         // LocalStorage Management
         function loadData() {
             const saved = localStorage.getItem('thai_expense_tracker_data');
+            const savedCategories = localStorage.getItem('thai_expense_tracker_categories');
             if (saved) {
                 try {
                     transactions = JSON.parse(saved);
@@ -499,12 +636,61 @@
                 }
             } else {
                 transactions = [...DEFAULT_TRANSACTIONS];
-                saveData();
             }
+
+            if (savedCategories) {
+                try {
+                    const parsedCategories = JSON.parse(savedCategories);
+                    if (isValidCategories(parsedCategories)) {
+                        CATEGORIES.expense = parsedCategories.expense;
+                        CATEGORIES.income = parsedCategories.income;
+                    }
+                } catch (error) {
+                    console.warn('Unable to load saved categories:', error);
+                }
+            }
+        }
+
+        async function syncFromFirebase() {
+            if (db) {
+                try {
+                    const snapshot = await db.collection('app').doc('data').get();
+                    if (snapshot.exists) {
+                        const data = snapshot.data();
+                        if (Array.isArray(data.transactions)) {
+                            transactions = data.transactions;
+                        }
+                        if (isValidCategories(data.categories)) {
+                            CATEGORIES.expense = data.categories.expense;
+                            CATEGORIES.income = data.categories.income;
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Unable to sync Firebase transactions:', error);
+                }
+            }
+            localStorage.setItem('thai_expense_tracker_data', JSON.stringify(transactions));
+            localStorage.setItem('thai_expense_tracker_categories', JSON.stringify(CATEGORIES));
         }
 
         function saveData() {
             localStorage.setItem('thai_expense_tracker_data', JSON.stringify(transactions));
+            localStorage.setItem('thai_expense_tracker_categories', JSON.stringify(CATEGORIES));
+            saveDataToFirebase();
+        }
+
+        async function saveDataToFirebase() {
+            if (!db) return;
+
+            try {
+                await db.collection('app').doc('data').set({
+                    transactions,
+                    categories: CATEGORIES,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+            } catch (error) {
+                console.warn('Unable to save Firebase data:', error);
+            }
         }
 
         /* Theme Management */
@@ -515,19 +701,24 @@
             } else {
                 document.documentElement.classList.remove('dark');
             }
+            updateAppThemeMeta();
         }
 
         function toggleTheme() {
             const isDark = document.documentElement.classList.toggle('dark');
             localStorage.setItem('thai_expense_tracker_theme', isDark ? 'dark' : 'light');
+            updateAppThemeMeta();
             updateChartsTheme();
+        }
+
+        function updateAppThemeMeta() {
+            const isDark = document.documentElement.classList.contains('dark');
+            document.querySelector('meta[name="theme-color"]').content = isDark ? '#1e293b' : '#ffffff';
+            document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]').content = isDark ? 'black-translucent' : 'default';
         }
 
         /* Event Listeners Setup */
         function setupEventListeners() {
-            // Theme toggle
-            document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
-
             // Data Menu Dropdown toggle
             const dataMenuBtn = document.getElementById('dataMenuBtn');
             const dataMenuDropdown = document.getElementById('dataMenuDropdown');
@@ -536,6 +727,12 @@
                 dataMenuDropdown.classList.toggle('hidden');
             });
             document.addEventListener('click', () => dataMenuDropdown.classList.add('hidden'));
+            document.getElementById('headerCategoryManagerBtn').addEventListener('click', openCategoryManager);
+            document.getElementById('refreshAppBtn').addEventListener('click', () => window.location.reload());
+            document.getElementById('themeToggleMenuBtn').addEventListener('click', () => {
+                dataMenuDropdown.classList.add('hidden');
+                toggleTheme();
+            });
 
             // Desktop Type Selector buttons
             document.querySelectorAll('.tx-type-btn').forEach(btn => {
@@ -593,7 +790,8 @@
             });
 
             // Modal Open & Close controls
-            document.getElementById('openModalBtn').addEventListener('click', () => openModal());
+            document.getElementById('mobileAddExpenseBtn').addEventListener('click', () => openQuickAdd('expense'));
+            document.getElementById('mobileAddIncomeBtn').addEventListener('click', () => openQuickAdd('income'));
             document.getElementById('closeModalBtn').addEventListener('click', closeModal);
             document.getElementById('cancelModalBtn').addEventListener('click', closeModal);
 
@@ -621,6 +819,36 @@
             document.getElementById('exportCsvBtn').addEventListener('click', exportToCSV);
             document.getElementById('exportJsonBtn').addEventListener('click', exportToJSON);
             document.getElementById('importJsonInput').addEventListener('change', importFromJSON);
+            document.getElementById('closeCategoryManagerBtn').addEventListener('click', closeCategoryManager);
+            document.getElementById('categoryManagerModal').addEventListener('click', (e) => {
+                if (e.target.id === 'categoryManagerModal') closeCategoryManager();
+            });
+            document.querySelectorAll('.category-manager-type-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    categoryManagerType = btn.dataset.categoryManagerType;
+                    resetCategoryEditor();
+                    renderCategoryManager();
+                });
+            });
+            document.getElementById('categoryForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                saveCategoryFromForm();
+            });
+            document.getElementById('cancelCategoryEditBtn').addEventListener('click', resetCategoryEditor);
+            document.getElementById('categoryManagerList').addEventListener('click', (e) => {
+                const button = e.target.closest('button[data-category-action]');
+                if (!button) return;
+                if (button.dataset.categoryAction === 'edit') {
+                    editCategory(button.dataset.categoryId);
+                } else if (button.dataset.categoryAction === 'delete') {
+                    deleteCategory(button.dataset.categoryId);
+                }
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeCategoryManager();
+                }
+            });
             document.getElementById('clearDataBtn').addEventListener('click', () => {
                 showConfirmModal(
                     'ล้างข้อมูลทั้งหมด',
@@ -699,6 +927,191 @@
             });
         }
 
+        function isValidCategories(categories) {
+            return Boolean(categories &&
+                Array.isArray(categories.expense) &&
+                Array.isArray(categories.income) &&
+                [...categories.expense, ...categories.income].every(category =>
+                    category &&
+                    typeof category.id === 'string' &&
+                    typeof category.name === 'string' &&
+                    category.name.trim().length > 0 &&
+                    typeof category.icon === 'string' &&
+                    /^fa-[a-z0-9-]+$/.test(category.icon) &&
+                    typeof category.color === 'string' &&
+                    /^#[0-9a-f]{6}$/i.test(category.color)
+                ) &&
+                ['expense', 'income'].every(type =>
+                    new Set(categories[type].map(category => category.id)).size === categories[type].length
+                )
+            );
+        }
+
+        function openCategoryManager() {
+            categoryManagerType = 'expense';
+            resetCategoryEditor();
+            renderCategoryManager();
+            const modal = document.getElementById('categoryManagerModal');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.remove('scale-95');
+        }
+
+        function closeCategoryManager() {
+            const modal = document.getElementById('categoryManagerModal');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.add('scale-95');
+            resetCategoryEditor();
+        }
+
+        function renderCategoryManager(scrollToCategoryId = null) {
+            document.querySelectorAll('.category-manager-type-btn').forEach(button => {
+                const isActive = button.dataset.categoryManagerType === categoryManagerType;
+                const activeClass = categoryManagerType === 'expense' ? 'bg-rose-500' : 'bg-emerald-500';
+                button.className = `category-manager-type-btn rounded-xl py-2.5 text-sm font-medium ${isActive ? `${activeClass} text-white shadow-sm` : 'text-slate-600 dark:text-slate-300'}`;
+            });
+
+            const list = document.getElementById('categoryManagerList');
+            list.replaceChildren();
+            CATEGORIES[categoryManagerType].forEach(category => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center gap-3 rounded-2xl border border-slate-100 dark:border-slate-700 p-3';
+                row.dataset.categoryId = category.id;
+
+                const icon = document.createElement('span');
+                icon.className = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white';
+                icon.style.backgroundColor = category.color;
+                const iconGlyph = document.createElement('i');
+                iconGlyph.className = `fa-solid ${category.icon}`;
+                icon.appendChild(iconGlyph);
+
+                const name = document.createElement('span');
+                name.className = 'min-w-0 flex-1 truncate text-sm font-medium text-slate-700 dark:text-slate-200';
+                name.textContent = category.name;
+
+                const editButton = document.createElement('button');
+                editButton.type = 'button';
+                editButton.dataset.categoryAction = 'edit';
+                editButton.dataset.categoryId = category.id;
+                editButton.className = 'rounded-xl p-2.5 text-slate-400 hover:bg-slate-100 hover:text-amber-500 dark:hover:bg-slate-700';
+                editButton.title = 'แก้ไขหมวดหมู่';
+                editButton.setAttribute('aria-label', `แก้ไข ${category.name}`);
+                editButton.innerHTML = '<i class="fa-solid fa-pen"></i>';
+
+                const deleteButton = document.createElement('button');
+                deleteButton.type = 'button';
+                deleteButton.dataset.categoryAction = 'delete';
+                deleteButton.dataset.categoryId = category.id;
+                deleteButton.className = 'rounded-xl p-2.5 text-slate-400 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-950/30';
+                deleteButton.title = 'ลบหมวดหมู่';
+                deleteButton.setAttribute('aria-label', `ลบ ${category.name}`);
+                deleteButton.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+
+                row.append(icon, name, editButton, deleteButton);
+                list.appendChild(row);
+            });
+
+            if (scrollToCategoryId) {
+                requestAnimationFrame(() => {
+                    list.querySelector(`[data-category-id="${CSS.escape(scrollToCategoryId)}"]`)?.scrollIntoView({
+                        block: 'nearest',
+                        behavior: 'smooth'
+                    });
+                });
+            }
+        }
+
+        function resetCategoryEditor() {
+            document.getElementById('categoryForm').reset();
+            document.getElementById('editingCategoryId').value = '';
+            document.getElementById('categoryNameInput').placeholder = 'ชื่อหมวดหมู่ใหม่';
+            document.getElementById('saveCategoryBtn').textContent = 'เพิ่ม';
+            document.getElementById('cancelCategoryEditBtn').classList.add('hidden');
+        }
+
+        function editCategory(categoryId) {
+            const category = CATEGORIES[categoryManagerType].find(item => item.id === categoryId);
+            if (!category) return;
+
+            document.getElementById('editingCategoryId').value = category.id;
+            document.getElementById('categoryNameInput').value = category.name;
+            document.getElementById('categoryNameInput').focus();
+            document.getElementById('categoryNameInput').placeholder = 'ชื่อหมวดหมู่';
+            document.getElementById('saveCategoryBtn').textContent = 'บันทึก';
+            document.getElementById('cancelCategoryEditBtn').classList.remove('hidden');
+        }
+
+        function saveCategoryFromForm() {
+            const nameInput = document.getElementById('categoryNameInput');
+            const name = nameInput.value.trim();
+            const editingId = document.getElementById('editingCategoryId').value;
+            if (!name) {
+                nameInput.focus();
+                return;
+            }
+
+            const categories = CATEGORIES[categoryManagerType];
+            if (categories.some(category =>
+                category.id !== editingId && category.name.localeCompare(name, 'th', { sensitivity: 'base' }) === 0
+            )) {
+                showToast('มีหมวดหมู่ชื่อนี้อยู่แล้ว', 'info');
+                nameInput.focus();
+                return;
+            }
+
+            const wasEditing = Boolean(editingId);
+            let savedCategoryId = editingId;
+            if (wasEditing) {
+                const category = categories.find(item => item.id === editingId);
+                if (!category) return;
+                category.name = name;
+            } else {
+                const colors = ['#0ea5e9', '#8b5cf6', '#f97316', '#ec4899', '#14b8a6', '#eab308'];
+                const category = {
+                    id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                    name,
+                    icon: 'fa-tag',
+                    color: colors[categories.length % colors.length]
+                };
+                categories.push(category);
+                savedCategoryId = category.id;
+            }
+
+            nameInput.blur();
+            saveData();
+            populateCategoriesSelects();
+            updateUI();
+            resetCategoryEditor();
+            renderCategoryManager(savedCategoryId);
+            showToast(wasEditing ? 'แก้ไขหมวดหมู่เรียบร้อยแล้ว' : 'เพิ่มหมวดหมู่เรียบร้อยแล้ว', 'success');
+        }
+
+        function deleteCategory(categoryId) {
+            const categories = CATEGORIES[categoryManagerType];
+            const category = categories.find(item => item.id === categoryId);
+            if (!category) return;
+            if (categories.length === 1) {
+                showToast('ต้องมีอย่างน้อย 1 หมวดหมู่ต่อประเภทรายการ', 'info');
+                return;
+            }
+            if (transactions.some(transaction => transaction.type === categoryManagerType && transaction.category === categoryId)) {
+                showToast('หมวดหมู่นี้มีรายการใช้อยู่ กรุณาแก้ไขรายการเหล่านั้นก่อนลบ', 'info');
+                return;
+            }
+
+            showConfirmModal(
+                'ยืนยันการลบหมวดหมู่',
+                `คุณต้องการลบหมวดหมู่ "${category.name}" ใช่หรือไม่?`,
+                () => {
+                    CATEGORIES[categoryManagerType] = CATEGORIES[categoryManagerType].filter(item => item.id !== categoryId);
+                    saveData();
+                    populateCategoriesSelects();
+                    updateUI();
+                    renderCategoryManager();
+                    showToast('ลบหมวดหมู่เรียบร้อยแล้ว', 'success');
+                }
+            );
+        }
+
         /* CRUD Operations */
         function addTransaction(tx) {
             const newTx = {
@@ -733,6 +1146,21 @@
         }
 
         /* Modal Dialog Management */
+        function openQuickAdd(type = 'expense') {
+            const modal = document.getElementById('txModal');
+            const title = document.getElementById('modalTitle');
+            const form = document.getElementById('modalTxForm');
+
+            title.innerHTML = '<i class="fa-solid fa-circle-plus text-emerald-500"></i> บันทึกรายการใหม่';
+            form.reset();
+            document.getElementById('modalTxId').value = '';
+            document.getElementById('modalDate').value = new Date().toISOString().split('T')[0];
+            setFormType(type, 'modal');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.remove('scale-95');
+            setTimeout(() => document.getElementById('modalAmount').focus(), 100);
+        }
+
         function openModal(editId = null) {
             const modal = document.getElementById('txModal');
             const title = document.getElementById('modalTitle');
@@ -878,7 +1306,6 @@
 
             if (filtered.length === 0) {
                 list.innerHTML = '';
-                list.appendChild(emptyState);
                 emptyState.classList.remove('hidden');
                 return;
             }
@@ -893,27 +1320,27 @@
                 const thaiDate = formatThaiDate(t.date);
 
                 return `
-                    <div class="group bg-slate-50 dark:bg-slate-700/40 hover:bg-slate-100 dark:hover:bg-slate-700/70 p-3.5 rounded-2xl transition border border-transparent hover:border-slate-200 dark:hover:border-slate-600 flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-3 min-w-0">
+                    <div class="tx-item group bg-slate-50 dark:bg-slate-700/40 hover:bg-slate-100 dark:hover:bg-slate-700/70 p-3.5 rounded-2xl transition border border-transparent hover:border-slate-200 dark:hover:border-slate-600 flex items-center justify-between gap-3">
+                        <div class="tx-primary flex items-center gap-3 min-w-0">
                             <!-- Category Icon Badge -->
                             <div class="w-11 h-11 rounded-2xl flex-shrink-0 flex items-center justify-center text-lg text-white shadow-sm" style="background-color: ${catObj.color}">
                                 <i class="fa-solid ${catObj.icon}"></i>
                             </div>
                             
                             <!-- Transaction Details -->
-                            <div class="min-w-0">
-                                <div class="flex items-center gap-2">
-                                    <h4 class="font-medium text-slate-800 dark:text-slate-100 text-sm truncate">${catObj.name}</h4>
+                            <div class="tx-details min-w-0">
+                                <div class="tx-heading flex items-center gap-2">
+                                    <h4 class="tx-title font-medium text-slate-800 dark:text-slate-100 text-sm truncate">${catObj.name}</h4>
                                     <span class="text-[10px] px-2 py-0.5 rounded-full font-medium ${isIncome ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'}">
                                         ${isIncome ? 'รายรับ' : 'รายจ่าย'}
                                     </span>
                                 </div>
-                                <p class="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">${t.note || thaiDate}</p>
+                                <p class="tx-note text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">${t.note || thaiDate}</p>
                             </div>
                         </div>
 
                         <!-- Right: Amount and Actions -->
-                        <div class="flex items-center gap-3 flex-shrink-0">
+                        <div class="tx-secondary flex items-center gap-3 flex-shrink-0">
                             <div class="text-right">
                                 <div class="font-bold text-sm sm:text-base ${isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">
                                     ${formattedAmount}
@@ -922,11 +1349,11 @@
                             </div>
 
                             <!-- Edit/Delete Action Buttons -->
-                            <div class="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onclick="openModal('${t.id}')" class="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition" title="แก้ไข">
+                            <div class="tx-actions flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onclick="openModal('${t.id}')" class="p-2 text-slate-400 hover:text-amber-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition" title="แก้ไข">
                                     <i class="fa-solid fa-pen text-xs"></i>
                                 </button>
-                                <button onclick="deleteTransaction('${t.id}')" class="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition" title="ลบ">
+                                <button onclick="deleteTransaction('${t.id}')" class="p-2 text-slate-400 hover:text-rose-500 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition" title="ลบ">
                                     <i class="fa-solid fa-trash-can text-xs"></i>
                                 </button>
                             </div>
@@ -1147,12 +1574,8 @@
         }
 
         function exportToJSON() {
-            if (transactions.length === 0) {
-                showToast('ไม่มีข้อมูลสำหรับส่งออก', 'info');
-                return;
-            }
-
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(transactions, null, 2));
+            const backup = { transactions, categories: CATEGORIES };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup, null, 2));
             const a = document.createElement('a');
             a.href = dataStr;
             a.download = `expense_tracker_backup_${new Date().toISOString().split('T')[0]}.json`;
@@ -1168,14 +1591,23 @@
             reader.onload = (event) => {
                 try {
                     const imported = JSON.parse(event.target.result);
-                    if (Array.isArray(imported)) {
-                        transactions = imported;
-                        saveData();
-                        updateUI();
-                        showToast('นำเข้าข้อมูลสำเร็จแล้ว', 'success');
-                    } else {
+                    const importedTransactions = Array.isArray(imported) ? imported : imported?.transactions;
+                    const importedCategories = Array.isArray(imported) ? null : (imported?.categories || null);
+                    if (!Array.isArray(importedTransactions) ||
+                        (importedCategories && !isValidCategories(importedCategories))) {
                         showToast('รูปแบบไฟล์ JSON ไม่ถูกต้อง', 'info');
+                        return;
                     }
+
+                    transactions = importedTransactions;
+                    if (importedCategories) {
+                        CATEGORIES.expense = importedCategories.expense;
+                        CATEGORIES.income = importedCategories.income;
+                    }
+                    saveData();
+                    populateCategoriesSelects();
+                    updateUI();
+                    showToast('นำเข้าข้อมูลสำเร็จแล้ว', 'success');
                 } catch (err) {
                     showToast('เกิดข้อผิดพลาดในการอ่านไฟล์', 'info');
                 }

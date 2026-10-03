@@ -41,6 +41,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -180,6 +181,14 @@
                         </label>
                         <button id="themeToggleMenuBtn" class="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2.5 text-slate-700 dark:text-slate-200">
                             <i class="fa-solid fa-circle-half-stroke text-indigo-500 text-base"></i> สลับโหมดมืด/สว่าง
+                        </button>
+                        <div class="border-t border-slate-100 dark:border-slate-700 my-1"></div>
+                        <p id="accountStatus" class="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">กำลังตรวจสอบบัญชี...</p>
+                        <button id="googleSignInBtn" class="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2.5 text-slate-700 dark:text-slate-200">
+                            <i class="fa-brands fa-google text-blue-500 text-base"></i> เข้าสู่ระบบด้วย Google
+                        </button>
+                        <button id="googleSignOutBtn" class="hidden w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2.5 text-slate-700 dark:text-slate-200">
+                            <i class="fa-solid fa-right-from-bracket text-rose-500 text-base"></i> ออกจากระบบ
                         </button>
                         <div class="border-t border-slate-100 dark:border-slate-700 my-1"></div>
                         <button id="clearDataBtn" class="w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 dark:hover:bg-red-950/30 text-rose-600 dark:text-rose-400 flex items-center gap-2.5">
@@ -558,6 +567,7 @@
             firebase.initializeApp(FIREBASE_CONFIG);
         }
 
+        const auth = HAS_FIREBASE_CONFIG ? firebase.auth() : null;
         const db = HAS_FIREBASE_CONFIG ? firebase.firestore() : null;
 
         /* Categorized Master Data Configuration */
@@ -581,6 +591,10 @@
                 { id: 'gift', name: 'ของขวัญ / โบนัส', icon: 'fa-gift', color: '#f43f5e' },
                 { id: 'other_income', name: 'รายรับอื่นๆ', icon: 'fa-wallet', color: '#64748b' }
             ]
+        };
+        const DEFAULT_CATEGORIES = {
+            expense: CATEGORIES.expense.map(category => ({ ...category })),
+            income: CATEGORIES.income.map(category => ({ ...category }))
         };
 
         // Default Sample Data (used when app is first loaded)
@@ -608,26 +622,37 @@
         let categoryChart = null;
         let trendChartPeriod = 'monthly'; // 'monthly' or 'daily'
         let pendingConfirmAction = null;
+        let currentUser = null;
 
         /* Initialize Application */
         document.addEventListener('DOMContentLoaded', async () => {
             initTheme();
-            loadData();
-            await syncFromFirebase();
             setupEventListeners();
             initCharts();
-            updateUI();
 
             // Set default date inputs to today
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('dtDate').value = today;
             document.getElementById('modalDate').value = today;
+
+            if (auth) {
+                await initializeAuthState();
+            } else {
+                loadData();
+                updateAccountControls();
+                updateUI();
+            }
         });
 
         // LocalStorage Management
         function loadData() {
-            const saved = localStorage.getItem('thai_expense_tracker_data');
-            const savedCategories = localStorage.getItem('thai_expense_tracker_categories');
+            CATEGORIES.expense = DEFAULT_CATEGORIES.expense.map(category => ({ ...category }));
+            CATEGORIES.income = DEFAULT_CATEGORIES.income.map(category => ({ ...category }));
+
+            const saved = localStorage.getItem(getDataStorageKey('thai_expense_tracker_data')) ||
+                (!currentUser && localStorage.getItem('thai_expense_tracker_data'));
+            const savedCategories = localStorage.getItem(getDataStorageKey('thai_expense_tracker_categories')) ||
+                (!currentUser && localStorage.getItem('thai_expense_tracker_categories'));
             if (saved) {
                 try {
                     transactions = JSON.parse(saved);
@@ -651,45 +676,150 @@
             }
         }
 
-        async function syncFromFirebase() {
-            if (db) {
-                try {
-                    const snapshot = await db.collection('app').doc('data').get();
-                    if (snapshot.exists) {
-                        const data = snapshot.data();
-                        if (Array.isArray(data.transactions)) {
-                            transactions = data.transactions;
-                        }
-                        if (isValidCategories(data.categories)) {
-                            CATEGORIES.expense = data.categories.expense;
-                            CATEGORIES.income = data.categories.income;
+        function getDataStorageKey(key) {
+            return `${key}:${currentUser ? `user:${currentUser.uid}` : 'guest'}`;
+        }
+
+        function saveLocalData() {
+            localStorage.setItem(getDataStorageKey('thai_expense_tracker_data'), JSON.stringify(transactions));
+            localStorage.setItem(getDataStorageKey('thai_expense_tracker_categories'), JSON.stringify(CATEGORIES));
+        }
+
+        function initializeAuthState() {
+            return new Promise(resolve => {
+                let isFirstState = true;
+                auth.onAuthStateChanged(async user => {
+                    try {
+                        const guestData = user && !currentUser ? getGuestData() : null;
+                        currentUser = user;
+                        loadData();
+                        if (user) await syncFromFirebase(guestData);
+                        updateAccountControls();
+                        updateUI();
+                    } catch (error) {
+                        console.error('Unable to initialize account data:', error);
+                        showToast('โหลดข้อมูลบัญชีไม่สำเร็จ ข้อมูลในเครื่องยังใช้งานได้', 'error');
+                        saveLocalData();
+                        updateAccountControls();
+                        updateUI();
+                    } finally {
+                        if (isFirstState) {
+                            isFirstState = false;
+                            resolve();
                         }
                     }
-                } catch (error) {
-                    console.warn('Unable to sync Firebase transactions:', error);
+                }, error => {
+                    console.error('Unable to check Firebase sign-in state:', error);
+                    showToast('ตรวจสอบสถานะการเข้าสู่ระบบไม่สำเร็จ', 'error');
+                    currentUser = null;
+                    loadData();
+                    updateAccountControls();
+                    updateUI();
+                    if (isFirstState) {
+                        isFirstState = false;
+                        resolve();
+                    }
+                });
+            });
+        }
+
+        function getGuestData() {
+            const savedTransactions = localStorage.getItem('thai_expense_tracker_data:guest') ||
+                localStorage.getItem('thai_expense_tracker_data');
+            if (!savedTransactions) return null;
+
+            try {
+                const guestTransactions = JSON.parse(savedTransactions);
+                if (!Array.isArray(guestTransactions)) return null;
+
+                const savedCategories = localStorage.getItem('thai_expense_tracker_categories:guest') ||
+                    localStorage.getItem('thai_expense_tracker_categories');
+                let guestCategories = {
+                    expense: DEFAULT_CATEGORIES.expense.map(category => ({ ...category })),
+                    income: DEFAULT_CATEGORIES.income.map(category => ({ ...category }))
+                };
+                if (savedCategories) {
+                    const parsedCategories = JSON.parse(savedCategories);
+                    if (isValidCategories(parsedCategories)) guestCategories = parsedCategories;
                 }
+                return { transactions: guestTransactions, categories: guestCategories };
+            } catch (error) {
+                console.warn('Unable to prepare local data for account migration:', error);
+                return null;
             }
-            localStorage.setItem('thai_expense_tracker_data', JSON.stringify(transactions));
-            localStorage.setItem('thai_expense_tracker_categories', JSON.stringify(CATEGORIES));
+        }
+
+        function updateAccountControls() {
+            const status = document.getElementById('accountStatus');
+            const signInButton = document.getElementById('googleSignInBtn');
+            const signOutButton = document.getElementById('googleSignOutBtn');
+
+            if (currentUser) {
+                status.textContent = `เข้าสู่ระบบ: ${currentUser.email || currentUser.displayName || 'Google'}`;
+                signInButton.classList.add('hidden');
+                signOutButton.classList.remove('hidden');
+            } else {
+                status.textContent = auth ? 'ยังไม่ได้เข้าสู่ระบบ (บันทึกเฉพาะเครื่อง)' : 'Firebase ยังตั้งค่าไม่ครบ';
+                signInButton.classList.remove('hidden');
+                signOutButton.classList.add('hidden');
+            }
+        }
+
+        async function syncFromFirebase(guestData = null) {
+            if (!db || !currentUser) return;
+
+            const userData = db.collection('users').doc(currentUser.uid).collection('data').doc('private');
+            try {
+                const snapshot = await userData.get();
+                if (snapshot.exists) {
+                    const data = snapshot.data();
+                    if (Array.isArray(data.transactions)) {
+                        transactions = data.transactions;
+                    }
+                    if (isValidCategories(data.categories)) {
+                        CATEGORIES.expense = data.categories.expense;
+                        CATEGORIES.income = data.categories.income;
+                    }
+                } else {
+                    const hasAccountLocalData = localStorage.getItem(getDataStorageKey('thai_expense_tracker_data')) !== null;
+                    if (guestData && !hasAccountLocalData) {
+                        transactions = guestData.transactions;
+                        CATEGORIES.expense = guestData.categories.expense;
+                        CATEGORIES.income = guestData.categories.income;
+                    }
+                    await userData.set({
+                        transactions,
+                        categories: CATEGORIES,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    if (guestData && !hasAccountLocalData) {
+                        showToast('ย้ายข้อมูลในเครื่องไปยังบัญชี Google แล้ว', 'success');
+                    }
+                }
+                saveLocalData();
+            } catch (error) {
+                console.error('Unable to sync Firebase transactions:', error);
+                showToast('Cloud ซิงก์ไม่สำเร็จ ข้อมูลยังบันทึกไว้ในเครื่อง', 'error');
+            }
         }
 
         function saveData() {
-            localStorage.setItem('thai_expense_tracker_data', JSON.stringify(transactions));
-            localStorage.setItem('thai_expense_tracker_categories', JSON.stringify(CATEGORIES));
+            saveLocalData();
             saveDataToFirebase();
         }
 
         async function saveDataToFirebase() {
-            if (!db) return;
+            if (!db || !currentUser) return;
 
             try {
-                await db.collection('app').doc('data').set({
+                await db.collection('users').doc(currentUser.uid).collection('data').doc('private').set({
                     transactions,
                     categories: CATEGORIES,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 }, { merge: true });
             } catch (error) {
-                console.warn('Unable to save Firebase data:', error);
+                console.error('Unable to save Firebase data:', error);
+                showToast('Cloud บันทึกไม่สำเร็จ ข้อมูลยังบันทึกไว้ในเครื่อง', 'error');
             }
         }
 
@@ -729,6 +859,38 @@
             document.addEventListener('click', () => dataMenuDropdown.classList.add('hidden'));
             document.getElementById('headerCategoryManagerBtn').addEventListener('click', openCategoryManager);
             document.getElementById('refreshAppBtn').addEventListener('click', () => window.location.reload());
+            document.getElementById('googleSignInBtn').addEventListener('click', async () => {
+                dataMenuDropdown.classList.add('hidden');
+                if (!auth) {
+                    showToast('กรุณาตั้งค่า Firebase และเปิด Google ในเมนู Authentication ก่อน', 'error');
+                    return;
+                }
+
+                const provider = new firebase.auth.GoogleAuthProvider();
+                provider.setCustomParameters({ prompt: 'select_account' });
+                try {
+                    const isMobileApp = window.matchMedia('(max-width: 767px)').matches ||
+                        window.matchMedia('(display-mode: standalone)').matches ||
+                        window.navigator.standalone === true;
+                    if (isMobileApp) {
+                        await auth.signInWithRedirect(provider);
+                    } else {
+                        await auth.signInWithPopup(provider);
+                    }
+                } catch (error) {
+                    console.error('Google sign-in failed:', error);
+                    showToast('เข้าสู่ระบบ Google ไม่สำเร็จ กรุณาลองใหม่', 'error');
+                }
+            });
+            document.getElementById('googleSignOutBtn').addEventListener('click', async () => {
+                dataMenuDropdown.classList.add('hidden');
+                try {
+                    await auth.signOut();
+                } catch (error) {
+                    console.error('Google sign-out failed:', error);
+                    showToast('ออกจากระบบไม่สำเร็จ กรุณาลองใหม่', 'error');
+                }
+            });
             document.getElementById('themeToggleMenuBtn').addEventListener('click', () => {
                 dataMenuDropdown.classList.add('hidden');
                 toggleTheme();
@@ -1217,14 +1379,20 @@
             const container = document.getElementById('toastContainer');
             const toast = document.createElement('div');
             
-            const bgClass = type === 'success' 
-                ? 'bg-slate-800 text-emerald-400 dark:bg-slate-100 dark:text-emerald-600' 
-                : 'bg-slate-800 text-slate-200 dark:bg-slate-100 dark:text-slate-800';
+            const bgClass = type === 'success'
+                ? 'bg-slate-800 text-emerald-400 dark:bg-slate-100 dark:text-emerald-600'
+                : type === 'error'
+                    ? 'bg-rose-700 text-white dark:bg-rose-600 dark:text-white'
+                    : 'bg-slate-800 text-slate-200 dark:bg-slate-100 dark:text-slate-800';
             
-            const icon = type === 'success' ? 'fa-check-circle' : 'fa-info-circle';
+            const icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-circle-exclamation' : 'fa-info-circle';
 
             toast.className = `flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl text-sm font-medium border border-slate-700/20 dark:border-slate-200/20 transition-all duration-300 transform translate-y-4 opacity-0 ${bgClass}`;
-            toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
+            const iconElement = document.createElement('i');
+            iconElement.className = `fa-solid ${icon}`;
+            const messageElement = document.createElement('span');
+            messageElement.textContent = message;
+            toast.append(iconElement, messageElement);
 
             container.appendChild(toast);
 

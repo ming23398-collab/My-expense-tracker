@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <title>ระบบบันทึกรายรับ-รายจ่าย (Expense & Income Tracker)</title>
     <meta name="theme-color" content="#1e293b">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -158,9 +158,8 @@
                 <button id="refreshAppBtn" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors" title="รีเฟรชแอป" aria-label="รีเฟรชแอป">
                     <i class="fa-solid fa-rotate-right"></i>
                 </button>
-                <div id="connectionStatus" role="status" aria-live="polite" aria-label="สถานะอินเทอร์เน็ต: ออนไลน์" class="inline-flex h-9 w-9 sm:w-auto items-center justify-center gap-2 rounded-lg px-2 text-xs font-medium text-emerald-600 dark:text-emerald-400" title="สถานะอินเทอร์เน็ต">
-                    <span id="connectionStatusIndicator" class="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true"></span>
-                    <span id="connectionStatusText" class="hidden sm:inline">ออนไลน์</span>
+                <div id="connectionStatus" role="status" aria-live="polite" aria-label="สถานะ Cloud: กำลังตรวจสอบ" class="hidden sm:inline-flex h-9 w-auto items-center justify-center gap-2 rounded-lg px-2 text-xs font-medium text-amber-600 dark:text-amber-400" title="สถานะการซิงก์ Cloud">
+                    <span id="connectionStatusText" class="inline">กำลังตรวจสอบ</span>
                 </div>
 
                 <!-- Data Backup / Export Menu Dropdown -->
@@ -179,6 +178,9 @@
                         <button id="exportJsonBtn" class="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2.5 text-slate-700 dark:text-slate-200">
                             <i class="fa-solid fa-file-code text-blue-500 text-base"></i> ส่งออกเป็น JSON
                         </button>
+                        <button id="exportCloudBackupBtn" class="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2.5 text-slate-700 dark:text-slate-200">
+                            <i class="fa-solid fa-cloud-arrow-down text-cyan-500 text-base"></i> ดาวน์โหลด Cloud backup ล่าสุด
+                        </button>
                         <label class="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2.5 text-slate-700 dark:text-slate-200 cursor-pointer">
                             <i class="fa-solid fa-file-import text-purple-500 text-base"></i> นำเข้าข้อมูล (JSON)
                             <input type="file" id="importJsonInput" accept=".json" class="hidden">
@@ -188,9 +190,8 @@
                         </button>
                         <div class="border-t border-slate-100 dark:border-slate-700 my-1"></div>
                         <p id="accountStatus" class="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">กำลังตรวจสอบบัญชี...</p>
-                        <div class="border-t border-slate-100 dark:border-slate-700 my-1"></div>
-                        <button id="clearDataBtn" class="w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 dark:hover:bg-red-950/30 text-rose-600 dark:text-rose-400 flex items-center gap-2.5">
-                            <i class="fa-solid fa-trash-can text-base"></i> ล้างข้อมูลทั้งหมด
+                        <button id="accountActionBtn" class="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2.5 text-slate-700 dark:text-slate-200">
+                            <i class="fa-solid fa-cloud-arrow-up text-emerald-500 text-base"></i> เชื่อมบัญชี / เข้าสู่ระบบ
                         </button>
                     </div>
                 </div>
@@ -533,6 +534,31 @@
         </div>
     </div>
 
+    <div id="authModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-200">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl border border-slate-100 dark:border-slate-700 transform scale-95 transition-transform duration-200">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700 mb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800 dark:text-white">เชื่อมข้อมูลข้ามอุปกรณ์</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">ใช้อีเมลและรหัสผ่านบัญชีเดียวกันทุกเครื่อง</p>
+                </div>
+                <button id="closeAuthModalBtn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition" aria-label="ปิด">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <p id="authInstructions" class="text-sm text-slate-600 dark:text-slate-300 mb-4">สมัครจากเครื่องที่มีข้อมูลเพื่อผูกบัญชีเดิมไว้ แล้วใช้อีเมลนี้เข้าสู่ระบบบนอุปกรณ์อื่น</p>
+            <form id="authForm" class="space-y-3">
+                <label class="block text-xs font-medium text-slate-500 dark:text-slate-400" for="authEmail">อีเมล</label>
+                <input id="authEmail" type="email" autocomplete="email" required placeholder="name@example.com" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base">
+                <label class="block text-xs font-medium text-slate-500 dark:text-slate-400" for="authPassword">รหัสผ่าน (อย่างน้อย 6 ตัวอักษร)</label>
+                <input id="authPassword" type="password" autocomplete="current-password" minlength="6" required placeholder="รหัสผ่าน" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                    <button id="linkAccountBtn" type="button" class="px-3 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium">สมัครและผูกข้อมูลเครื่องนี้</button>
+                    <button id="signInBtn" type="button" class="px-3 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white text-sm font-medium">เข้าสู่ระบบบัญชีเดิม</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Toast Notification Container -->
     <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
@@ -615,6 +641,10 @@
         let trendChartPeriod = 'monthly'; // 'monthly' or 'daily'
         let pendingConfirmAction = null;
         let currentUser = null;
+        let cloudSyncStatus = 'กำลังตรวจสอบ';
+        let lastCloudSyncAt = null;
+        let unsubscribeCloudData = null;
+        let cloudSaveQueue = Promise.resolve();
 
         /* Initialize Application */
         document.addEventListener('DOMContentLoaded', async () => {
@@ -691,14 +721,20 @@
                 let isFirstState = true;
                 auth.onAuthStateChanged(async user => {
                     try {
+                        if (unsubscribeCloudData) {
+                            unsubscribeCloudData();
+                            unsubscribeCloudData = null;
+                        }
                         const guestData = user && !currentUser ? getGuestData() : null;
                         currentUser = user;
+                        lastCloudSyncAt = user ? localStorage.getItem(`thai_expense_tracker_last_cloud_sync:${user.uid}`) : null;
                         loadData();
-                        if (user) await syncFromFirebase(guestData);
+                        if (user && await syncFromFirebase(guestData)) subscribeToFirebaseData();
                         updateAccountControls();
                         updateUI();
                     } catch (error) {
                         console.error('Unable to initialize account data:', error);
+                        cloudSyncStatus = 'ซิงก์ไม่สำเร็จ';
                         showToast('โหลดข้อมูลบัญชีไม่สำเร็จ ข้อมูลในเครื่องยังใช้งานได้', 'error');
                         saveLocalData();
                         updateAccountControls();
@@ -711,7 +747,10 @@
                     }
                 }, error => {
                     console.error('Unable to check Firebase sign-in state:', error);
+                    cloudSyncStatus = 'ซิงก์ไม่สำเร็จ';
                     showToast('ตรวจสอบสถานะการเข้าสู่ระบบไม่สำเร็จ', 'error');
+                    if (unsubscribeCloudData) unsubscribeCloudData();
+                    unsubscribeCloudData = null;
                     currentUser = null;
                     loadData();
                     updateAccountControls();
@@ -724,6 +763,28 @@
             });
         }
 
+
+        function subscribeToFirebaseData() {
+            if (!db || !currentUser) return;
+            const userData = db.collection('users').doc(currentUser.uid).collection('data').doc('private');
+            unsubscribeCloudData = userData.onSnapshot(snapshot => {
+                if (!snapshot.exists || snapshot.metadata.hasPendingWrites) return;
+                const data = snapshot.data();
+                if (Array.isArray(data.transactions)) transactions = data.transactions;
+                if (isValidCategories(data.categories)) {
+                    CATEGORIES.expense = data.categories.expense;
+                    CATEGORIES.income = data.categories.income;
+                }
+                recordCloudSync();
+                saveLocalData();
+                updateAccountControls();
+                updateUI();
+            }, error => {
+                console.error('Unable to watch Firebase transactions:', error);
+                cloudSyncStatus = 'ซิงก์ไม่สำเร็จ';
+                updateAccountControls();
+            });
+        }
         function getGuestData() {
             const savedTransactions = localStorage.getItem('thai_expense_tracker_data:guest') ||
                 localStorage.getItem('thai_expense_tracker_data');
@@ -752,33 +813,140 @@
 
         function updateAccountControls() {
             const status = document.getElementById('accountStatus');
+            const actionButton = document.getElementById('accountActionBtn');
+            const lastSyncText = lastCloudSyncAt
+                ? ` • ล่าสุด ${new Date(lastCloudSyncAt).toLocaleString('th-TH')}`
+                : '';
 
-            if (currentUser) {
-                status.textContent = 'ซิงก์ Cloud อัตโนมัติ';
+            if (!auth || !db) {
+                status.textContent = 'Firebase ใช้งานไม่ได้ (บันทึกเฉพาะเครื่อง)';
+                actionButton.disabled = true;
+                actionButton.classList.add('opacity-50', 'cursor-not-allowed');
+            } else if (currentUser && !currentUser.isAnonymous) {
+                status.textContent = `${currentUser.email} • ${cloudSyncStatus}${lastSyncText}`;
+                actionButton.disabled = true;
+                actionButton.classList.add('opacity-50', 'cursor-not-allowed');
             } else {
-                status.textContent = auth ? 'Cloud ใช้งานไม่ได้ (บันทึกเฉพาะเครื่อง)' : 'Firebase ยังตั้งค่าไม่ครบ';
+                status.textContent = currentUser
+                    ? `บัญชีชั่วคราว • ${cloudSyncStatus}${lastSyncText}`
+                    : 'ยังไม่ได้เชื่อมต่อบัญชี';
+                actionButton.disabled = false;
+                actionButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+            updateConnectionStatus();
+        }
+
+        function openAuthModal() {
+            document.getElementById('dataMenuDropdown').classList.add('hidden');
+            document.getElementById('authInstructions').textContent = currentUser?.isAnonymous && transactions.length
+                ? `เครื่องนี้มี ${transactions.length} รายการ ให้เลือก “สมัครและผูกข้อมูลเครื่องนี้” เพื่อเก็บข้อมูลไว้ในบัญชีนี้ อย่าเข้าสู่ระบบบัญชีเดิมบนเครื่องนี้`
+                : 'สมัครและผูกบัญชีบนเครื่องที่มีข้อมูลจริงก่อน ส่วนอุปกรณ์อื่นให้เข้าสู่ระบบด้วยอีเมลเดียวกัน';
+            const modal = document.getElementById('authModal');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.remove('scale-95');
+        }
+
+        function closeAuthModal() {
+            const modal = document.getElementById('authModal');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.add('scale-95');
+        }
+
+        function getAuthErrorMessage(error) {
+            const messages = {
+                'auth/operation-not-allowed': 'ต้องเปิด Email/Password ใน Firebase Console ก่อน',
+                'auth/email-already-in-use': 'อีเมลนี้มีบัญชีแล้ว ข้อมูลเครื่องนี้ยังอยู่บัญชีชั่วคราว อย่าเปลี่ยนบัญชีบนเครื่องที่มีข้อมูล',
+                'auth/credential-already-in-use': 'อีเมลนี้มีบัญชีแล้ว ข้อมูลเครื่องนี้ยังอยู่บัญชีชั่วคราว อย่าเปลี่ยนบัญชีบนเครื่องที่มีข้อมูล',
+                'auth/weak-password': 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร',
+                'auth/invalid-email': 'รูปแบบอีเมลไม่ถูกต้อง',
+                'auth/invalid-credential': 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
+                'auth/wrong-password': 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
+                'auth/user-not-found': 'ยังไม่พบบัญชีนี้ กรุณาสมัครจากเครื่องที่มีข้อมูลก่อน'
+            };
+            return messages[error.code] || 'เชื่อมต่อบัญชีไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง';
+        }
+
+        async function linkCurrentAccount() {
+            if (!document.getElementById('authForm').reportValidity()) return;
+            const email = document.getElementById('authEmail').value.trim();
+            const password = document.getElementById('authPassword').value;
+            if (!currentUser || !currentUser.isAnonymous) {
+                showToast('เปิดหน้านี้จากบัญชีชั่วคราวที่มีข้อมูลก่อน', 'error');
+                return;
+            }
+
+            cloudSyncStatus = 'กำลังซิงก์';
+            updateAccountControls();
+            const uploaded = await saveDataToFirebase();
+            if (!uploaded) {
+                showToast('สำรองข้อมูลขึ้น Cloud ไม่สำเร็จ จึงยังไม่ผูกบัญชี', 'error');
+                return;
+            }
+
+            try {
+                const credential = firebase.auth.EmailAuthProvider.credential(email, password);
+                const result = await currentUser.linkWithCredential(credential);
+                currentUser = result.user;
+                updateAccountControls();
+                closeAuthModal();
+                showToast('ผูกบัญชีสำเร็จ ข้อมูลเดิมยังอยู่ครบ', 'success');
+            } catch (error) {
+                console.error('Unable to link email account:', error);
+                showToast(getAuthErrorMessage(error), 'error');
+            }
+        }
+
+        async function signInToAccount() {
+            if (!document.getElementById('authForm').reportValidity()) return;
+            if (currentUser?.isAnonymous && transactions.length > 0) {
+                showToast('เครื่องนี้มีข้อมูล ให้สมัครและผูกบัญชีนี้ก่อนเข้าสู่ระบบ', 'error');
+                return;
+            }
+
+            const email = document.getElementById('authEmail').value.trim();
+            const password = document.getElementById('authPassword').value;
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+                closeAuthModal();
+                showToast('เข้าสู่ระบบแล้ว กำลังโหลดข้อมูล Cloud', 'success');
+            } catch (error) {
+                console.error('Unable to sign in:', error);
+                showToast(getAuthErrorMessage(error), 'error');
             }
         }
 
         function updateConnectionStatus() {
             const status = document.getElementById('connectionStatus');
-            const indicator = document.getElementById('connectionStatusIndicator');
             const label = document.getElementById('connectionStatusText');
             const isOnline = navigator.onLine;
+            const displayStatus = !isOnline ? 'ออฟไลน์' : cloudSyncStatus;
+            const isError = !isOnline || cloudSyncStatus === 'ซิงก์ไม่สำเร็จ';
+            const isPending = ['ยังไม่ยืนยัน', 'กำลังตรวจสอบ', 'กำลังซิงก์'].includes(cloudSyncStatus);
 
-            status.setAttribute('aria-label', `สถานะอินเทอร์เน็ต: ${isOnline ? 'ออนไลน์' : 'ออฟไลน์'}`);
-            status.classList.toggle('text-emerald-600', isOnline);
-            status.classList.toggle('dark:text-emerald-400', isOnline);
-            status.classList.toggle('text-rose-600', !isOnline);
-            status.classList.toggle('dark:text-rose-400', !isOnline);
-            indicator.classList.toggle('bg-emerald-500', isOnline);
-            indicator.classList.toggle('bg-rose-500', !isOnline);
-            label.textContent = isOnline ? 'ออนไลน์' : 'ออฟไลน์';
+            status.setAttribute('aria-label', `สถานะ Cloud: ${displayStatus}`);
+            status.title = `สถานะการซิงก์ Cloud: ${displayStatus}`;
+            status.classList.toggle('text-rose-600', isError);
+            status.classList.toggle('dark:text-rose-400', isError);
+            status.classList.toggle('text-amber-600', !isError && isPending);
+            status.classList.toggle('dark:text-amber-400', !isError && isPending);
+            status.classList.toggle('text-emerald-600', !isError && !isPending);
+            status.classList.toggle('dark:text-emerald-400', !isError && !isPending);
+            label.textContent = displayStatus;
+        }
+
+        function recordCloudSync(timestamp = new Date()) {
+            lastCloudSyncAt = timestamp instanceof Date ? timestamp.toISOString() : timestamp;
+            if (currentUser) {
+                localStorage.setItem(`thai_expense_tracker_last_cloud_sync:${currentUser.uid}`, lastCloudSyncAt);
+            }
+            cloudSyncStatus = 'ซิงก์แล้ว';
         }
 
         async function syncFromFirebase(guestData = null) {
             if (!db || !currentUser) return;
 
+            cloudSyncStatus = 'กำลังตรวจสอบ';
+            updateAccountControls();
             const userData = db.collection('users').doc(currentUser.uid).collection('data').doc('private');
             try {
                 const snapshot = await userData.get();
@@ -791,6 +959,7 @@
                         CATEGORIES.expense = data.categories.expense;
                         CATEGORIES.income = data.categories.income;
                     }
+                    recordCloudSync(data.updatedAt?.toDate?.() || new Date());
                 } else {
                     const hasAccountLocalData = localStorage.getItem(getDataStorageKey('thai_expense_tracker_data')) !== null;
                     if (guestData && !hasAccountLocalData) {
@@ -803,35 +972,75 @@
                         categories: CATEGORIES,
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
+                    recordCloudSync();
                     if (guestData && !hasAccountLocalData) {
                         showToast('ย้ายข้อมูลในเครื่องไปยัง Cloud แล้ว', 'success');
                     }
                 }
                 saveLocalData();
+                return true;
             } catch (error) {
                 console.error('Unable to sync Firebase transactions:', error);
+                cloudSyncStatus = 'ซิงก์ไม่สำเร็จ';
+                updateAccountControls();
                 showToast('Cloud ซิงก์ไม่สำเร็จ ข้อมูลยังบันทึกไว้ในเครื่อง', 'error');
+                return false;
             }
         }
 
         function saveData() {
             saveLocalData();
+            cloudSyncStatus = db && currentUser ? 'กำลังซิงก์' : 'เฉพาะเครื่อง';
+            updateAccountControls();
             saveDataToFirebase();
         }
 
         async function saveDataToFirebase() {
-            if (!db || !currentUser) return;
-
-            try {
-                await db.collection('users').doc(currentUser.uid).collection('data').doc('private').set({
-                    transactions,
-                    categories: CATEGORIES,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                }, { merge: true });
-            } catch (error) {
-                console.error('Unable to save Firebase data:', error);
-                showToast('Cloud บันทึกไม่สำเร็จ ข้อมูลยังบันทึกไว้ในเครื่อง', 'error');
+            if (!db || !currentUser) {
+                cloudSyncStatus = 'เฉพาะเครื่อง';
+                updateAccountControls();
+                return Promise.resolve(false);
             }
+
+            const userId = currentUser.uid;
+            const payload = JSON.parse(JSON.stringify({ transactions, categories: CATEGORIES }));
+            const saveTask = async () => {
+                if (!currentUser || currentUser.uid !== userId) return false;
+
+                const dataCollection = db.collection('users').doc(userId).collection('data');
+                const userData = dataCollection.doc('private');
+                const backupData = dataCollection.doc('private_backup');
+                try {
+                    await db.runTransaction(async transaction => {
+                        const previous = await transaction.get(userData);
+                        if (previous.exists && Array.isArray(previous.data().transactions)) {
+                            transaction.set(backupData, {
+                                transactions: previous.data().transactions,
+                                categories: previous.data().categories || DEFAULT_CATEGORIES,
+                                backupAt: firebase.firestore.FieldValue.serverTimestamp(),
+                                sourceUpdatedAt: previous.data().updatedAt || null
+                            });
+                        }
+                        transaction.set(userData, {
+                            ...payload,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        }, { merge: true });
+                    });
+                    recordCloudSync();
+                    updateAccountControls();
+                    return true;
+                } catch (error) {
+                    console.error('Unable to save Firebase data:', error);
+                    cloudSyncStatus = 'ซิงก์ไม่สำเร็จ';
+                    updateAccountControls();
+                    showToast('Cloud บันทึกไม่สำเร็จ ข้อมูลยังบันทึกไว้ในเครื่อง', 'error');
+                    return false;
+                }
+            };
+
+            const queuedSave = cloudSaveQueue.catch(() => false).then(saveTask);
+            cloudSaveQueue = queuedSave;
+            return queuedSave;
         }
 
         /* Theme Management */
@@ -878,6 +1087,14 @@
                 dataMenuDropdown.classList.add('hidden');
                 toggleTheme();
             });
+            document.getElementById('accountActionBtn').addEventListener('click', openAuthModal);
+            document.getElementById('closeAuthModalBtn').addEventListener('click', closeAuthModal);
+            document.getElementById('authForm').addEventListener('submit', event => event.preventDefault());
+            document.getElementById('authModal').addEventListener('click', event => {
+                if (event.target.id === 'authModal') closeAuthModal();
+            });
+            document.getElementById('linkAccountBtn').addEventListener('click', linkCurrentAccount);
+            document.getElementById('signInBtn').addEventListener('click', signInToAccount);
 
             document.querySelectorAll('.tx-type-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
@@ -957,6 +1174,7 @@
             // Data Export & Import Handlers
             document.getElementById('exportCsvBtn').addEventListener('click', exportToCSV);
             document.getElementById('exportJsonBtn').addEventListener('click', exportToJSON);
+            document.getElementById('exportCloudBackupBtn').addEventListener('click', exportCloudBackup);
             document.getElementById('importJsonInput').addEventListener('change', importFromJSON);
             document.getElementById('closeCategoryManagerBtn').addEventListener('click', closeCategoryManager);
             document.getElementById('categoryManagerModal').addEventListener('click', (e) => {
@@ -988,19 +1206,6 @@
                     closeCategoryManager();
                 }
             });
-            document.getElementById('clearDataBtn').addEventListener('click', () => {
-                showConfirmModal(
-                    'ล้างข้อมูลทั้งหมด',
-                    'คุณแน่ใจหรือไม่ว่าต้องการลบรายการทั้งหมด? ข้อมูลเดิมจะไม่สามารถกู้คืนได้',
-                    () => {
-                        transactions = [];
-                        saveData();
-                        updateUI();
-                        showToast('ล้างข้อมูลเรียบร้อยแล้ว', 'info');
-                    }
-                );
-            });
-
             // Confirmation Modal Actions
             document.getElementById('cancelConfirmBtn').addEventListener('click', closeConfirmModal);
             document.getElementById('acceptConfirmBtn').addEventListener('click', () => {
@@ -1720,12 +1925,43 @@
 
         function exportToJSON() {
             const backup = { transactions, categories: CATEGORIES };
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup, null, 2));
+            downloadJsonFile(backup, `expense_tracker_backup_${new Date().toISOString().split('T')[0]}.json`);
+            showToast('ส่งออก JSON เรียบร้อยแล้ว', 'success');
+        }
+
+        function downloadJsonFile(data, filename) {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
             const a = document.createElement('a');
             a.href = dataStr;
-            a.download = `expense_tracker_backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.download = filename;
             a.click();
-            showToast('ส่งออก JSON เรียบร้อยแล้ว', 'success');
+        }
+
+        async function exportCloudBackup() {
+            if (!db || !currentUser) {
+                showToast('ยังไม่มีบัญชี Cloud สำหรับสำรองข้อมูล', 'error');
+                return;
+            }
+
+            try {
+                const backupSnapshot = await db.collection('users').doc(currentUser.uid)
+                    .collection('data').doc('private_backup').get();
+                if (!backupSnapshot.exists) {
+                    showToast('ยังไม่มี snapshot ก่อนหน้า ระบบจะสร้างเมื่อบันทึกครั้งถัดไป', 'info');
+                    return;
+                }
+
+                const backup = backupSnapshot.data();
+                downloadJsonFile({
+                    transactions: backup.transactions,
+                    categories: backup.categories,
+                    backupAt: backup.backupAt?.toDate?.().toISOString() || null
+                }, `expense_tracker_cloud_backup_${new Date().toISOString().split('T')[0]}.json`);
+                showToast('ดาวน์โหลด Cloud backup ล่าสุดแล้ว', 'success');
+            } catch (error) {
+                console.error('Unable to download Cloud backup:', error);
+                showToast('ดาวน์โหลด Cloud backup ไม่สำเร็จ', 'error');
+            }
         }
 
         function importFromJSON(e) {

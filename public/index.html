@@ -158,6 +158,10 @@
                 <button id="refreshAppBtn" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors" title="รีเฟรชแอป" aria-label="รีเฟรชแอป">
                     <i class="fa-solid fa-rotate-right"></i>
                 </button>
+                <div id="connectionStatus" role="status" aria-live="polite" aria-label="สถานะอินเทอร์เน็ต: ออนไลน์" class="inline-flex h-9 w-9 sm:w-auto items-center justify-center gap-2 rounded-lg px-2 text-xs font-medium text-emerald-600 dark:text-emerald-400" title="สถานะอินเทอร์เน็ต">
+                    <span id="connectionStatusIndicator" class="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true"></span>
+                    <span id="connectionStatusText" class="hidden sm:inline">ออนไลน์</span>
+                </div>
 
                 <!-- Data Backup / Export Menu Dropdown -->
                 <div class="relative">
@@ -184,12 +188,6 @@
                         </button>
                         <div class="border-t border-slate-100 dark:border-slate-700 my-1"></div>
                         <p id="accountStatus" class="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">กำลังตรวจสอบบัญชี...</p>
-                        <button id="googleSignInBtn" class="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2.5 text-slate-700 dark:text-slate-200">
-                            <i class="fa-brands fa-google text-blue-500 text-base"></i> เข้าสู่ระบบด้วย Google
-                        </button>
-                        <button id="googleSignOutBtn" class="hidden w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2.5 text-slate-700 dark:text-slate-200">
-                            <i class="fa-solid fa-right-from-bracket text-rose-500 text-base"></i> ออกจากระบบ
-                        </button>
                         <div class="border-t border-slate-100 dark:border-slate-700 my-1"></div>
                         <button id="clearDataBtn" class="w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 dark:hover:bg-red-950/30 text-rose-600 dark:text-rose-400 flex items-center gap-2.5">
                             <i class="fa-solid fa-trash-can text-base"></i> ล้างข้อมูลทั้งหมด
@@ -553,12 +551,13 @@
 
     <script>
         const FIREBASE_CONFIG = {
-            apiKey: "YOUR_API_KEY",
+            apiKey: "AIzaSyCS_fSniLOWOmnwsTzw6TCU8NaNEicFfbs",
             authDomain: "my-expense-tracker-5ba78.firebaseapp.com",
             projectId: "my-expense-tracker-5ba78",
-            storageBucket: "my-expense-tracker-5ba78.appspot.com",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID"
+            storageBucket: "my-expense-tracker-5ba78.firebasestorage.app",
+            messagingSenderId: "323280637522",
+            appId: "1:323280637522:web:d81192fffc9042c031598b",
+            measurementId: "G-4QM2F8NKF9"
         };
 
         const HAS_FIREBASE_CONFIG = Object.values(FIREBASE_CONFIG).every(value => value && !String(value).startsWith('YOUR_'));
@@ -597,14 +596,7 @@
             income: CATEGORIES.income.map(category => ({ ...category }))
         };
 
-        // Default Sample Data (used when app is first loaded)
-        const DEFAULT_TRANSACTIONS = [
-            { id: '1', type: 'income', amount: 35000, category: 'salary', date: getFormattedDate(0), note: 'เงินเดือนประจำเดือน' },
-            { id: '2', type: 'expense', amount: 150, category: 'food', date: getFormattedDate(0), note: 'ข้าวเที่ยง + กาแฟ' },
-            { id: '3', type: 'expense', amount: 1200, category: 'bills', date: getFormattedDate(-1), note: 'ค่าอินเทอร์เน็ตรายเดือน' },
-            { id: '4', type: 'expense', amount: 450, category: 'transport', date: getFormattedDate(-2), note: 'เติมน้ำมันรถยนต์' },
-            { id: '5', type: 'income', amount: 3500, category: 'freelance', date: getFormattedDate(-3), note: 'รับทำเว็บไซต์เสริม' }
-        ];
+        const DEFAULT_TRANSACTIONS = [];
 
         // Helper function for date offsets
         function getFormattedDate(offsetDays = 0) {
@@ -637,6 +629,15 @@
 
             if (auth) {
                 await initializeAuthState();
+                if (!auth.currentUser) {
+                    try {
+                        await auth.signInAnonymously();
+                    } catch (error) {
+                        console.error('Anonymous sign-in failed:', error);
+                        showToast('เชื่อมต่อ Cloud ไม่สำเร็จ ข้อมูลยังบันทึกในเครื่อง', 'error');
+                        updateAccountControls();
+                    }
+                }
             } else {
                 loadData();
                 updateAccountControls();
@@ -751,18 +752,28 @@
 
         function updateAccountControls() {
             const status = document.getElementById('accountStatus');
-            const signInButton = document.getElementById('googleSignInBtn');
-            const signOutButton = document.getElementById('googleSignOutBtn');
 
             if (currentUser) {
-                status.textContent = `เข้าสู่ระบบ: ${currentUser.email || currentUser.displayName || 'Google'}`;
-                signInButton.classList.add('hidden');
-                signOutButton.classList.remove('hidden');
+                status.textContent = 'ซิงก์ Cloud อัตโนมัติ';
             } else {
-                status.textContent = auth ? 'ยังไม่ได้เข้าสู่ระบบ (บันทึกเฉพาะเครื่อง)' : 'Firebase ยังตั้งค่าไม่ครบ';
-                signInButton.classList.remove('hidden');
-                signOutButton.classList.add('hidden');
+                status.textContent = auth ? 'Cloud ใช้งานไม่ได้ (บันทึกเฉพาะเครื่อง)' : 'Firebase ยังตั้งค่าไม่ครบ';
             }
+        }
+
+        function updateConnectionStatus() {
+            const status = document.getElementById('connectionStatus');
+            const indicator = document.getElementById('connectionStatusIndicator');
+            const label = document.getElementById('connectionStatusText');
+            const isOnline = navigator.onLine;
+
+            status.setAttribute('aria-label', `สถานะอินเทอร์เน็ต: ${isOnline ? 'ออนไลน์' : 'ออฟไลน์'}`);
+            status.classList.toggle('text-emerald-600', isOnline);
+            status.classList.toggle('dark:text-emerald-400', isOnline);
+            status.classList.toggle('text-rose-600', !isOnline);
+            status.classList.toggle('dark:text-rose-400', !isOnline);
+            indicator.classList.toggle('bg-emerald-500', isOnline);
+            indicator.classList.toggle('bg-rose-500', !isOnline);
+            label.textContent = isOnline ? 'ออนไลน์' : 'ออฟไลน์';
         }
 
         async function syncFromFirebase(guestData = null) {
@@ -793,7 +804,7 @@
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                     if (guestData && !hasAccountLocalData) {
-                        showToast('ย้ายข้อมูลในเครื่องไปยังบัญชี Google แล้ว', 'success');
+                        showToast('ย้ายข้อมูลในเครื่องไปยัง Cloud แล้ว', 'success');
                     }
                 }
                 saveLocalData();
@@ -849,6 +860,10 @@
 
         /* Event Listeners Setup */
         function setupEventListeners() {
+            updateConnectionStatus();
+            window.addEventListener('online', updateConnectionStatus);
+            window.addEventListener('offline', updateConnectionStatus);
+
             // Data Menu Dropdown toggle
             const dataMenuBtn = document.getElementById('dataMenuBtn');
             const dataMenuDropdown = document.getElementById('dataMenuDropdown');
@@ -859,60 +874,23 @@
             document.addEventListener('click', () => dataMenuDropdown.classList.add('hidden'));
             document.getElementById('headerCategoryManagerBtn').addEventListener('click', openCategoryManager);
             document.getElementById('refreshAppBtn').addEventListener('click', () => window.location.reload());
-            document.getElementById('googleSignInBtn').addEventListener('click', async () => {
-                dataMenuDropdown.classList.add('hidden');
-                if (!auth) {
-                    showToast('กรุณาตั้งค่า Firebase และเปิด Google ในเมนู Authentication ก่อน', 'error');
-                    return;
-                }
-
-                const provider = new firebase.auth.GoogleAuthProvider();
-                provider.setCustomParameters({ prompt: 'select_account' });
-                try {
-                    const isMobileApp = window.matchMedia('(max-width: 767px)').matches ||
-                        window.matchMedia('(display-mode: standalone)').matches ||
-                        window.navigator.standalone === true;
-                    if (isMobileApp) {
-                        await auth.signInWithRedirect(provider);
-                    } else {
-                        await auth.signInWithPopup(provider);
-                    }
-                } catch (error) {
-                    console.error('Google sign-in failed:', error);
-                    showToast('เข้าสู่ระบบ Google ไม่สำเร็จ กรุณาลองใหม่', 'error');
-                }
-            });
-            document.getElementById('googleSignOutBtn').addEventListener('click', async () => {
-                dataMenuDropdown.classList.add('hidden');
-                try {
-                    await auth.signOut();
-                } catch (error) {
-                    console.error('Google sign-out failed:', error);
-                    showToast('ออกจากระบบไม่สำเร็จ กรุณาลองใหม่', 'error');
-                }
-            });
             document.getElementById('themeToggleMenuBtn').addEventListener('click', () => {
                 dataMenuDropdown.classList.add('hidden');
                 toggleTheme();
             });
 
-            // Desktop Type Selector buttons
             document.querySelectorAll('.tx-type-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
-                    const type = e.currentTarget.dataset.type;
-                    setFormType(type, 'desktop');
+                    setFormType(e.currentTarget.dataset.type, 'desktop');
                 });
             });
 
-            // Modal Type Selector buttons
             document.querySelectorAll('.modal-tx-type-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
-                    const type = e.currentTarget.dataset.modalType;
-                    setFormType(type, 'modal');
+                    setFormType(e.currentTarget.dataset.modalType, 'modal');
                 });
             });
 
-            // Desktop Form Submission
             document.getElementById('desktopTxForm').addEventListener('submit', (e) => {
                 e.preventDefault();
                 addTransaction({
@@ -927,7 +905,6 @@
                 showToast('บันทึกรายการเรียบร้อยแล้ว', 'success');
             });
 
-            // Modal Form Submission
             document.getElementById('modalTxForm').addEventListener('submit', (e) => {
                 e.preventDefault();
                 const id = document.getElementById('modalTxId').value;

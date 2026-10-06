@@ -204,7 +204,7 @@
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
         <!-- Financial Overview Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
             <!-- Balance Card -->
             <div class="bg-gradient-to-br from-indigo-600 to-slate-800 text-white rounded-3xl p-6 shadow-lg shadow-indigo-500/10 relative overflow-hidden flex flex-col justify-between">
                 <div class="absolute -right-6 -bottom-6 opacity-10 text-9xl font-bold">
@@ -236,6 +236,22 @@
                 </div>
                 <div class="mt-4 flex items-center text-xs text-slate-500 dark:text-slate-400">
                     <span id="incomeCount">0 รายการ</span>
+                </div>
+            </div>
+
+            <!-- Today's Expense Card -->
+            <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700/60 shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 dark:text-slate-400">ค่าใช้จ่ายวันนี้</p>
+                        <h3 class="text-2xl sm:text-3xl font-bold text-rose-600 dark:text-rose-400 mt-2" id="todayExpense">฿0.00</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-calendar-day"></i>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center text-xs text-slate-500 dark:text-slate-400">
+                    <span>เฉพาะรายการของวันนี้</span>
                 </div>
             </div>
 
@@ -628,7 +644,10 @@
         function getFormattedDate(offsetDays = 0) {
             const d = new Date();
             d.setDate(d.getDate() + offsetDays);
-            return d.toISOString().split('T')[0];
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
         }
 
         /* Application State */
@@ -653,7 +672,7 @@
             initCharts();
 
             // Set default date inputs to today
-            const today = new Date().toISOString().split('T')[0];
+            const today = getFormattedDate();
             document.getElementById('dtDate').value = today;
             document.getElementById('modalDate').value = today;
 
@@ -1498,7 +1517,7 @@
             title.innerHTML = '<i class="fa-solid fa-circle-plus text-emerald-500"></i> บันทึกรายการใหม่';
             form.reset();
             document.getElementById('modalTxId').value = '';
-            document.getElementById('modalDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('modalDate').value = getFormattedDate();
             setFormType(type, 'modal');
             modal.classList.remove('opacity-0', 'pointer-events-none');
             modal.children[0].classList.remove('scale-95');
@@ -1525,7 +1544,7 @@
                 title.innerHTML = '<i class="fa-solid fa-circle-plus text-emerald-500"></i> บันทึกรายการใหม่';
                 form.reset();
                 document.getElementById('modalTxId').value = '';
-                document.getElementById('modalDate').value = new Date().toISOString().split('T')[0];
+                document.getElementById('modalDate').value = getFormattedDate();
                 setFormType('expense', 'modal');
             }
 
@@ -1617,6 +1636,10 @@
 
             document.getElementById('totalBalance').textContent = `฿${balance.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
             document.getElementById('totalIncome').textContent = `฿${totalInc.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
+            const todayExpense = transactions
+                .filter(t => t.type === 'expense' && t.date === getFormattedDate())
+                .reduce((sum, t) => sum + t.amount, 0);
+            document.getElementById('todayExpense').textContent = `฿${todayExpense.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
             document.getElementById('totalExpense').textContent = `฿${totalExp.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
             
             document.getElementById('incomeCount').textContent = `${incCount} รายการ`;

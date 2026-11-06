@@ -281,7 +281,7 @@
             <div id="totalExpenseCard" role="button" tabindex="0" title="กดเพื่อดูรายการรายจ่าย" class="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700/60 shadow-sm flex flex-col justify-between cursor-pointer hover:shadow-md hover:border-rose-200 dark:hover:border-rose-500/40 transition-all">
                 <div class="flex justify-between items-start">
                     <div>
-                        <p class="text-sm font-medium text-slate-500 dark:text-slate-400">รายจ่ายรวม</p>
+                        <p class="text-sm font-medium text-slate-500 dark:text-slate-400">รายจ่ายเดือนนี้</p>
                         <h3 class="text-2xl sm:text-3xl font-bold text-rose-600 dark:text-rose-400 mt-2" id="totalExpense">฿0.00</h3>
                     </div>
                     <div class="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center text-xl">
@@ -1720,20 +1720,22 @@
         function calculateTotals() {
             let totalInc = 0;
             let totalExp = 0;
-            let expCount = 0;
             const now = new Date();
-            const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const currentMonth = getCurrentMonthKey();
             const periodIncomeTransactions = transactions.filter(t =>
                 t.type === 'income' && t.date?.slice(0, 7) === currentMonth
             );
             const periodIncome = periodIncomeTransactions.reduce((sum, t) => sum + t.amount, 0);
+            const periodExpenseTransactions = transactions.filter(t =>
+                t.type === 'expense' && t.date?.slice(0, 7) === currentMonth
+            );
+            const periodExpense = periodExpenseTransactions.reduce((sum, t) => sum + t.amount, 0);
 
             transactions.forEach(t => {
                 if (t.type === 'income') {
                     totalInc += t.amount;
                 } else {
                     totalExp += t.amount;
-                    expCount++;
                 }
             });
 
@@ -1755,10 +1757,10 @@
             document.getElementById('yesterdayExpense').textContent = `฿${yesterdayExpense.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
             document.getElementById('yesterdayExpenseCount').textContent = `${yesterdayTransactions.length} รายการ`;
 
-            document.getElementById('totalExpense').textContent = `฿${totalExp.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
+            document.getElementById('totalExpense').textContent = `฿${periodExpense.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
             
             document.getElementById('incomeCount').textContent = `${periodIncomeTransactions.length} รายการ`;
-            document.getElementById('expenseCount').textContent = `${expCount} รายการ`;
+            document.getElementById('expenseCount').textContent = `${periodExpenseTransactions.length} รายการ`;
 
             // Daily Budget: balance divided by remaining days in the current month
             const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -1768,12 +1770,17 @@
             document.getElementById('daysRemainingInMonth').textContent = `เหลืออีก ${daysRemaining} วันในเดือนนี้`;
         }
 
+        function getCurrentMonthKey() {
+            const now = new Date();
+            return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        }
+
         /* Card Transactions Detail Modal */
         const CARD_TX_CONFIG = {
             income: { title: 'รายการรายรับทั้งหมด', filter: t => t.type === 'income' },
             today: { title: 'ค่าใช้จ่ายวันนี้', filter: t => t.type === 'expense' && t.date === getFormattedDate() },
             yesterday: { title: 'ค่าใช้จ่ายเมื่อวาน', filter: t => t.type === 'expense' && t.date === getFormattedDate(-1) },
-            expense: { title: 'รายการรายจ่ายทั้งหมด', filter: t => t.type === 'expense' }
+            expense: { title: 'รายการรายจ่ายเดือนนี้', filter: t => t.type === 'expense' && t.date?.slice(0, 7) === getCurrentMonthKey() }
         };
 
         function openCardTransactions(kind) {
